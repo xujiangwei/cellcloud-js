@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2013 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2014 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,13 +31,18 @@ var Nucleus = Class(Service, {
 	ctor: function() {
 		this.tag = UUID.v4();
 		this.talkService = null;
+		this.heartbeat = 5000;
+	},
+
+	config: function(config) {
+		this.heartbeat = config.heartbeat || 5000;
 	},
 
 	startup: function() {
 		Logger.i("Nucleus", "Cell Initializing");
 
 		if (null == this.talkService) {
-			this.talkService = new TalkService();
+			this.talkService = new TalkService(this.heartbeat);
 		}
 
 		this.talkService.startup();

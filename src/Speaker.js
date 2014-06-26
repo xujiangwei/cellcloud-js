@@ -242,7 +242,8 @@ var Speaker = Class({
 			failure.setSourceDescription("Http status error");
 		}
 		else {
-			failure= new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
+			failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
+			failure.setSourceDescription("Unknown");
 		}
 		// 设置 cellet identifier
 		failure.setSourceCelletIdentifier(this.identifier);

@@ -66,13 +66,14 @@ var _DelegateProxy = Class(SpeakerDelegate, {
  * @author Jiangwei Xu
  */
 var TalkService = Class(Service, {
-	ctor: function() {
+	ctor: function(heartbeat) {
 		TalkService.instance = this;
 
 		this.daemonTimer = 0;
 		this.listeners = new Array();
 		this.speakers = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
+		this.heartbeat = heartbeat;
 	},
 
 	startup: function() {
@@ -82,10 +83,11 @@ var TalkService = Class(Service, {
 
 		var self = this;
 
-		// 启动定时任务，5秒周期
+		// 启动定时任务
+		Logger.i("TalkService", "Heartbeat period is " + self.heartbeat + "ms");
 		self.daemonTimer = setInterval(function() {
 				self._exeDaemonTask();
-			}, 5000);
+			}, self.heartbeat);
 		return true;
 	},
 
