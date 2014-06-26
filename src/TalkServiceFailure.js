@@ -37,8 +37,11 @@ var TalkFailureCode = {
 	/** Call 一般性失败。 */
 	CALL_FAILED: 200,
 
-	/** Call 连接超时。 */
-	CALL_TIMEOUT: 201
+	/** 连接超时，丢失会话。 */
+	TALK_LOST: 300,
+
+	/** 未知故障。 */
+	UNKNOWN: 900
 };
 
 
@@ -58,8 +61,11 @@ var TalkServiceFailure = Class({
 		case TalkFailureCode.NOTFOUND_CELLET:
 			this.description = "Server can not find specified cellet";
 			break;
-		case TalkFailureCode.CALL_TIMEOUT:
+		case TalkFailureCode.CALL_FAILED:
 			this.description = "Network connecting timeout";
+			break;
+		case TalkFailureCode.TALK_LOST:
+			this.description = "Lost talk connection";
 			break;
 		default:
 			break;

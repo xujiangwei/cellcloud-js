@@ -234,15 +234,33 @@ var Speaker = Class({
 	_fireFailed: function(request, code) {
 		var failure = null;
 		if (code == HttpErrorCode.NETWORK_FAILED) {
-			failure = new TalkServiceFailure(TalkFailureCode.CALL_TIMEOUT, "Speaker");
-			failure.setSourceDescription("Network failed");
+			if (this.state == SpeakerState.CALLING) {
+				failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
+				failure.setSourceDescription("Attempt to connect to host timed out");
+
+				// 更新状态
+				this.state = SpeakerState.HANGUP;
+			}
+			else {
+				failure = new TalkServiceFailure(TalkFailureCode.TALK_LOST, "Speaker");
+				failure.setSourceDescription("Attempt to connect to host timed out");
+			}
 		}
 		else if (code == HttpErrorCode.STATUS_ERROR) {
-			failure = new TalkServiceFailure(TalkFailureCode.CALL_TIMEOUT, "Speaker");
-			failure.setSourceDescription("Http status error");
+			if (this.state == SpeakerState.CALLING) {
+				failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
+				failure.setSourceDescription("Http status error");
+
+				// 更新状态
+				this.state = SpeakerState.HANGUP;
+			}
+			else {
+				failure = new TalkServiceFailure(TalkFailureCode.TALK_LOST, "Speaker");
+				failure.setSourceDescription("Http status error");
+			}
 		}
 		else {
-			failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
+			failure = new TalkServiceFailure(TalkFailureCode.UNKNOWN, "Speaker");
 			failure.setSourceDescription("Unknown");
 		}
 		// 设置 cellet identifier

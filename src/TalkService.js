@@ -84,7 +84,7 @@ var TalkService = Class(Service, {
 		var self = this;
 
 		// 启动定时任务
-		Logger.i("TalkService", "Heartbeat period is " + self.heartbeat + "ms");
+		Logger.i("TalkService", "Heartbeat period is " + self.heartbeat + " ms");
 		self.daemonTimer = setInterval(function() {
 				self._exeDaemonTask();
 			}, self.heartbeat);
