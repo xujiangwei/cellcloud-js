@@ -62,7 +62,7 @@ function HashMap() {
 	/**
 	 * 向 Map 中添加数据
 	 */
-	this.put = function(key,value) {
+	this.put = function(key, value) {
 		if (!this.containsKey(key)) {
 			length++;
 		}
@@ -89,7 +89,7 @@ function HashMap() {
 	 * 获得 Map 中的所有 Value
 	 */
 	this.values = function() {
-		var _values= new Array();
+		var _values = new Array();
 		for (var key in obj) {
 			_values.push(obj[key]);
 		}

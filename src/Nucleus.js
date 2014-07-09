@@ -31,22 +31,19 @@ var Nucleus = Class(Service, {
 	ctor: function() {
 		this.tag = UUID.v4();
 		this.talkService = null;
-		this.heartbeat = 5000;
-	},
-
-	config: function(config) {
-		this.heartbeat = config.heartbeat || 5000;
+		this.ts = null;
 	},
 
 	startup: function() {
 		Logger.i("Nucleus", "Cell Initializing");
 
 		if (null == this.talkService) {
-			this.talkService = new TalkService(this.heartbeat);
+			this.talkService = new TalkService();
+			this.ts = this.talkService;
 		}
 
 		this.talkService.startup();
-		window.talkService = this.talkService;
+		window.service = this.talkService;
 
 		return true;
 	},
@@ -54,6 +51,8 @@ var Nucleus = Class(Service, {
 	shutdown: function() {
 		if (null != this.talkService) {
 			this.talkService.shutdown();
+			this.talkService = null;
+			this.ts = null;
 		}
 	}
 });

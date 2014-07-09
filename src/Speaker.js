@@ -68,6 +68,7 @@ var Speaker = Class({
 
 		// tick 时间戳
 		this.tickTime = null;
+		this.heartbeat = 5000;
 	},
 
 	call: function(address) {
@@ -91,6 +92,7 @@ var Speaker = Class({
 	},
 
 	hangUp: function() {
+		this.state = SpeakerState.HANGUP;
 		// TODO
 	},
 
@@ -120,7 +122,7 @@ var Speaker = Class({
 				if (parseInt(data["queue"]) > 0) {
 					var t = new Date();
 					if (self.tickTime != null
-						&& (t.getTime() - self.tickTime.getTime()) >= 5000) {
+						&& (t.getTime() - self.tickTime.getTime()) >= self.heartbeat) {
 							self.tick();
 					}
 				}

@@ -66,14 +66,16 @@ var _DelegateProxy = Class(SpeakerDelegate, {
  * @author Jiangwei Xu
  */
 var TalkService = Class(Service, {
-	ctor: function(heartbeat) {
+	ctor: function() {
 		TalkService.instance = this;
 
 		this.daemonTimer = 0;
 		this.listeners = new Array();
 		this.speakers = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
-		this.heartbeat = heartbeat;
+
+		// 默认 5 秒心跳
+		this.heartbeat = 5000;
 	},
 
 	startup: function() {
@@ -117,6 +119,33 @@ var TalkService = Class(Service, {
 		return (this.listeners.indexOf(listener) >= 0);
 	},
 
+	/** 重置心跳周期。
+	 */
+	resetHeartbeat: function(heartbeat) {
+		if (this.heartbeat == heartbeat || heartbeat < 2000) {
+			return false;
+		}
+
+		var self = this;
+
+		clearInterval(self.daemonTimer);
+
+		// 重置心跳周期
+		self.heartbeat = heartbeat;
+
+		// 重置 Speaker
+		var list = self.speakers.values();
+		for (var i = 0; i < list.length; ++i) {
+			list[i].heartbeat = heartbeat;
+		}
+
+		Logger.i("TalkService", "Reset heartbeat period is " + self.heartbeat + " ms");
+		self.daemonTimer = setInterval(function() {
+				self._exeDaemonTask();
+			}, self.heartbeat);
+		return true;
+	},
+
 	call: function(identifier, address) {
 		var speaker = null;
 		if (this.speakers.containsKey(identifier)) {
@@ -124,6 +153,7 @@ var TalkService = Class(Service, {
 		}
 		else {
 			speaker = new Speaker(window.nucleus.tag, identifier, this.delegateProxy);
+			speaker.heartbeat = this.heartbeat;
 			this.speakers.put(identifier, speaker);
 		}
 
@@ -131,7 +161,12 @@ var TalkService = Class(Service, {
 	},
 
 	hangUp: function(identifier) {
-		// TODO
+		var speaker = this.speakers.get(identifier);
+		if (null != speaker) {
+			speaker.hangUp();
+
+			this.speakers.remove(identifier);
+		}
 	},
 
 	talk: function(identifier, mix) {
