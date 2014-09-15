@@ -210,9 +210,14 @@ var AjaxCrossDomainRequest = Class({
 		}
 
 		var scriptDom = document.getElementById("cccd");
+		if (scriptDom != null) {
+			document.body.removeChild(scriptDom);
+			scriptDom = null;
+		}
 		if (null == scriptDom) {
 			scriptDom = document.createElement("script");
 			scriptDom.setAttribute("type", "text/javascript");
+			scriptDom.setAttribute("id", "cccd");
 
 			if (scriptDom.addEventListener) {
 				scriptDom.addEventListener("error", function(e) { self._onError(e); }, false);
@@ -225,9 +230,6 @@ var AjaxCrossDomainRequest = Class({
 
 			scriptDom.src = src;
 			document.body.appendChild(scriptDom);
-		}
-		else {
-			scriptDom.src = src;
 		}
 
 		return this;

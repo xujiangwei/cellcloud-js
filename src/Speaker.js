@@ -120,11 +120,12 @@ var Speaker = Class({
 			.send(function(data) {
 				// 判断心跳间隔，如在可控阀值区间，则补偿一次的 tick
 				if (parseInt(data["queue"]) > 0) {
-					var t = new Date();
-					if (self.tickTime != null
-						&& (t.getTime() - self.tickTime.getTime()) >= self.heartbeat) {
-							self.tick();
-					}
+					self.tick();
+					//var t = new Date();
+					//if (self.tickTime != null
+					//	&& (t.getTime() - self.tickTime.getTime()) >= self.heartbeat) {
+					//		self.tick();
+					//}
 				}
 			});
 	},
@@ -136,7 +137,7 @@ var Speaker = Class({
 
 		var self = this;
 
-		self.tickTime = new Date();
+		//self.tickTime = new Date();
 
 		// 请求心跳
 		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
