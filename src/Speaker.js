@@ -118,14 +118,30 @@ var Speaker = Class({
 			.content(content)
 			.error(self._fireFailed, self)
 			.send(function(data) {
-				// 判断心跳间隔，如在可控阀值区间，则补偿一次的 tick
-				if (parseInt(data["queue"]) > 0) {
-					self.tick();
+				// FIXME 2014/10/03 以下做法无法保证请求效率，进行修改。
+				// 判断是否需要进行数据请求
+				//if (parseInt(data["queue"]) > 0) {
+					// 直接进行数据请求
+					//self.tick();
+
+					// FIXME 2014/09/18 判断心跳间隔，如在可控阀值区间，则补偿一次的 tick
 					//var t = new Date();
 					//if (self.tickTime != null
 					//	&& (t.getTime() - self.tickTime.getTime()) >= self.heartbeat) {
 					//		self.tick();
 					//}
+				//}
+
+				// 数据样本: "{"primitives":[{"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}],"version":"1.0"}]}"
+				var primitives = data["primitives"];
+				if (undefined !== primitives) {
+					// 解析数据
+					for (var i = 0; i < primitives.length; ++i) {
+						self._doDialogue(primitives[i]);
+					}
+				}
+				else if (parseInt(data["queue"]) > 0) {
+					self.tick();
 				}
 			});
 	},
