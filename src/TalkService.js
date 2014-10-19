@@ -193,6 +193,10 @@ var TalkService = Class(Service, {
 	},
 
 	isCalled: function(identifier) {
+		var speaker = this.speakers.get(identifier);
+		if (null != speaker) {
+			return (speaker.state == SpeakerState.CALLED);
+		}
 		return false;
 	},
 
