@@ -3031,13 +3031,10 @@ var TalkService = Class(Service, {
 		var adf = new ActionDialectFactory();
 		DialectEnumerator.getInstance().addFactory(adf);
 
-		var self = this;
-
 		// 启动定时任务
-		Logger.i("TalkService", "Heartbeat period is " + self.heartbeat + " ms");
-		self.daemonTimer = setInterval(function() {
-				self._exeDaemonTask();
-			}, self.heartbeat);
+		Logger.i("TalkService", "Heartbeat period is " + this.heartbeat + " ms");
+		this._hbFunction();
+
 		return true;
 	},
 
@@ -3074,23 +3071,22 @@ var TalkService = Class(Service, {
 			return false;
 		}
 
-		var self = this;
-
-		clearInterval(self.daemonTimer);
+		clearTimeout(this.daemonTimer);
 
 		// 重置心跳周期
-		self.heartbeat = heartbeat;
+		this.heartbeat = heartbeat;
 
 		// 重置 Speaker
-		var list = self.speakers.values();
+		var list = this.speakers.values();
 		for (var i = 0; i < list.length; ++i) {
 			list[i].heartbeat = heartbeat;
 		}
 
-		Logger.i("TalkService", "Reset heartbeat period is " + self.heartbeat + " ms");
-		self.daemonTimer = setInterval(function() {
-				self._exeDaemonTask();
-			}, self.heartbeat);
+		Logger.i("TalkService", "Reset heartbeat period is " + this.heartbeat + " ms");
+
+		// 启动执行
+		this._hbFunction();
+
 		return true;
 	},
 
@@ -3146,6 +3142,25 @@ var TalkService = Class(Service, {
 			return (speaker.state == SpeakerState.CALLED);
 		}
 		return false;
+	},
+
+	_hbFunction: function() {
+		var self = this;
+
+		if (self.daemonTimer > 0) {
+			clearTimeout(self.daemonTimer);
+		}
+
+		self.daemonTimer = setTimeout(function() {
+			clearTimeout(self.daemonTimer);
+			self.daemonTimer = 0;
+
+			// 执行任务
+			self._exeDaemonTask();
+
+			// 循环执行
+			self._hbFunction();
+		}, self.heartbeat);
 	},
 
 	_exeDaemonTask: function() {
