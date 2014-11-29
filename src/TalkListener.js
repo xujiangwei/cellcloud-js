@@ -50,6 +50,6 @@ var TalkListener = Class({
 
 	/** 发生错误。
 	 */
-	failed: function(identifier, tag, failure) {
+	failed: function(tag, failure) {
 	}
 });

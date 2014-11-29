@@ -48,16 +48,22 @@ var SpeakerState = {
  * @author Jiangwei Xu
  */
 var Speaker = Class({
-	ctor: function(tag, identifier, delegate) {
+	ctor: function(tag, address, delegate, socketEnabled) {
 		this.tag = tag;
-		this.identifier = identifier;
+		this.address = address;
 		this.delegate = delegate;
+		this.identifiers = [];
+
+		// 是否使用 WebSocket
+		this.wsEnabled = (socketEnabled !== undefined && socketEnabled) ? true : false;
+		// WebSocket
+		this.socket = null;
+
 		// 状态
 		this.state = SpeakerState.HANGUP;
 		// 是否授权可访问
 		this.authenticated = false;
-		// 地址
-		this.address = null;
+
 		// Ajax 请求句柄
 		this.request = null;
 		// Cookie
@@ -67,26 +73,53 @@ var Speaker = Class({
 		this.remoteTag = null;
 
 		// tick 时间戳
-		this.tickTime = null;
-		this.heartbeat = 5000;
+		this.tickTime = new Date();
+		this.heartbeat = 30000;
 	},
 
-	call: function(address) {
+	call: function(identifiers) {
 		if (this.state == SpeakerState.CALLING)
 			return false;
 
-		var self = this;
-		this.address = address;
+		if (null != identifiers) {
+			for (var i = 0; i < identifiers.length; ++i) {
+				var identifier = identifiers[i];
+				if (this.identifiers.indexOf(identifier) >= 0) {
+					continue;
+				}
+
+				this.identifiers.push(identifier);
+			}
+		}
+
 		this.state = SpeakerState.CALLING;
 
-		this.request = Ajax.newCrossDomain(address.getAddress(), address.getPort())
-			.uri("/talk/int")
-			.method("GET")
-			.error(self._fireFailed, self)
-			.send(function(data, cookie) {
-				self.cookie = cookie;
-				self._processInterrogation(data);
-			});
+		if (this.wsEnabled && null == this.socket) {
+			// 如果启用 WebSocket 端口号 +1
+			this._startSocket(this.address.getAddress(), this.address.getPort() + 1);
+		}
+
+		var self = this;
+		if (null != this.socket) {
+			// OPEN - 1
+			if (this.socket.readyState == 1) {
+				// 已经连接则直接发送数据
+				var msg = {
+					cell: "interrogate"
+				};
+				this.socket.send(JSON.stringify(msg));
+			}
+		}
+		else {
+			this.request = Ajax.newCrossDomain(this.address.getAddress(), this.address.getPort())
+				.uri("/talk/int")
+				.method("GET")
+				.error(self._fireFailed, self)
+				.send(function(data, cookie) {
+					self.cookie = cookie;
+					self._processInterrogation(data);
+				});
+		}
 
 		return true;
 	},
@@ -96,8 +129,13 @@ var Speaker = Class({
 		// TODO
 	},
 
-	speak: function(primitive) {
+	speak: function(identifier, primitive) {
 		if (this.state != SpeakerState.CALLED) {
+			return false;
+		}
+
+		if (this.identifiers.indexOf(identifier) < 0) {
+			// 没有找到对应请求的 Cellet
 			return false;
 		}
 
@@ -108,6 +146,7 @@ var Speaker = Class({
 		PrimitiveSerializer.write(primJSON, primitive);
 		var content = {
 			"tag": self.tag,
+			"identifier": identifier,
 			"primitive": primJSON
 		};
 
@@ -132,18 +171,30 @@ var Speaker = Class({
 					//}
 				//}
 
-				// 数据样本: "{"primitives":[{"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}],"version":"1.0"}]}"
-				var primitives = data["primitives"];
+				/* 数据样本:
+				{"primitives":
+				   [
+				     {
+				       "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
+				       , "identifier": "DummeyCellet"
+				     }
+				   ]
+				}
+				*/
+				var primitives = data.primitives;
 				if (undefined !== primitives) {
 					// 解析数据
 					for (var i = 0; i < primitives.length; ++i) {
-						self._doDialogue(primitives[i]);
+						var item = primitives[i];
+						self._doDialogue(item.identifier, item.primitive);
 					}
 				}
-				else if (parseInt(data["queue"]) > 0) {
+				else if (parseInt(data.queue) > 0) {
 					self.tick();
 				}
 			});
+
+		return true;
 	},
 
 	tick: function() {
@@ -153,7 +204,13 @@ var Speaker = Class({
 
 		var self = this;
 
-		//self.tickTime = new Date();
+		var time = new Date();
+
+		if (time.getTime() - self.tickTime.getTime() < 1000) {
+			return;
+		}
+
+		self.tickTime = time;
 
 		// 请求心跳
 		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
@@ -162,16 +219,52 @@ var Speaker = Class({
 			.cookie(self.cookie)
 			.error(self._fireFailed, self)
 			.send(function(data) {
-				// 数据样本: "{"primitives":[{"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}],"version":"1.0"}]}"
-				var primitives = data["primitives"];
+				/* 数据样本:
+				{"primitives":
+				   [
+				     {
+				       "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
+				       , "identifier": "DummeyCellet"
+				     }
+				   ]
+				}
+				*/
+				var primitives = data.primitives;
 				if (undefined !== primitives) {
-					//console.log(JSON.stringify(data));
 					// 解析数据
 					for (var i = 0; i < primitives.length; ++i) {
-						self._doDialogue(primitives[i]);
+						var item = primitives[i];
+						self._doDialogue(item.identifier, item.primitive);
 					}
 				}
 			});
+	},
+
+	_startSocket: function(address, port) {
+		var self = this;
+		this.socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
+		this.socket.onopen = function(event) { self._onSocketOpen(event); };
+		this.socket.onclose = function(event) { self._onSocketClose(event); };
+		this.socket.onmessage = function(event) { self._onSocketMessage(event); };
+		this.socket.onerror = function(event) { self._onSocketError(event); };
+	},
+
+	_onSocketOpen: function(event) {
+		console.log('_onSocketOpen');
+
+		var msg = {
+			cell: "interrogate"
+		};
+		this.socket.send(JSON.stringify(msg));
+	},
+	_onSocketClose: function(event) {
+		console.log('_onSocketClose');
+	},
+	_onSocketMessage: function(event) {
+		console.log('_onSocketMessage: ' + event.data);
+	},
+	_onSocketError: function(event) {
+		console.log('_onSocketError');
 	},
 
 	_processInterrogation: function(data) {
@@ -193,7 +286,7 @@ var Speaker = Class({
 		text = text.join('');
 
 		var self = this;
-		var content = {"plaintext" : text};
+		var content = {"plaintext": text, "tag": self.tag};
 		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
 			.uri("/talk/check")
 			.method("POST")
@@ -203,52 +296,73 @@ var Speaker = Class({
 			.send(function(data) {
 				// Tag
 				self.remoteTag = data.tag;
-				self._requestCellet();
+				self._requestCellets();
 			});
 	},
 
-	_requestCellet: function() {
+	_requestCellets: function() {
 		var self = this;
-		var content = {
-			"identifier": self.identifier,
-			"tag": self.tag
-		};
-		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
-			.uri("/talk/request")
-			.method("POST")
-			.cookie(self.cookie)
-			.content(content)
-			.error(self._fireFailed, self)
-			.send(function(data) {
-				Logger.i("Speaker", "Cellet '" + self.identifier + "' has called at " + self.address.getAddress() + ":" + self.address.getPort());
 
-				// 更新状态
-				self.state = SpeakerState.CALLED;
+		for (var i = 0; i < self.identifiers.length; ++i) {
+			var identifier = self.identifiers[i];
+			var content = {
+				"identifier": identifier.toString(),
+				"tag": self.tag
+			};
+			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+				.uri("/talk/request")
+				.method("POST")
+				.cookie(self.cookie)
+				.content(content)
+				.error(self._fireFailed, self)
+				.send(function(data) {
+					if (undefined !== data.error) {
+						// 创建失败
+						var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
+						failure.setSourceDescription("Can not find cellet '" + data.identifier + "'");
+						failure.setSourceCelletIdentifiers(self.identifiers);
+						self.state = SpeakerState.HANGUP;		// 更新状态
+						// 回调失败
+						self.delegate.onFailed(self, failure);
+					}
+					else {
+						if (self.state == SpeakerState.HANGUP) {
+							// 已经有失败的请求，则不再记录成功的请求
+							return;
+						}
 
-				// 回调事件
-				self._fireContacted();
-			});
+						Logger.i("Speaker", "Cellet '" + data.identifier + "' has called at " +
+								self.address.getAddress() + ":" + self.address.getPort());
+
+						// 更新状态
+						self.state = SpeakerState.CALLED;
+
+						// 回调事件
+						self._fireContacted(data.identifier);
+					}
+				});
+		}
 	},
 
-	_doDialogue: function(json) {
+	_doDialogue: function(identifier, primitiveJson) {
 		// 创建原语
 		var primitive = new Primitive(this.remoteTag);
-		primitive.setCelletIdentifier(this.identifier);
+		primitive.setCelletIdentifier(identifier);
 
 		// 读取数据
-		PrimitiveSerializer.read(primitive, json);
+		PrimitiveSerializer.read(primitive, primitiveJson);
 
-		this._fireDialogue(primitive);
+		this._fireDialogue(identifier, primitive);
 	},
 
-	_fireDialogue: function(primitive) {
-		this.delegate.onDialogue(this, primitive);
+	_fireDialogue: function(identifier, primitive) {
+		this.delegate.onDialogue(this, identifier, primitive);
 	},
-	_fireContacted: function() {
-		this.delegate.onContacted(this);
+	_fireContacted: function(identifier) {
+		this.delegate.onContacted(this, identifier);
 	},
-	_fireQuitted: function() {
-		this.delegate.onQuitted(this);
+	_fireQuitted: function(identifier) {
+		this.delegate.onQuitted(this, identifier);
 	},
 	_fireFailed: function(request, code) {
 		var failure = null;
@@ -283,7 +397,7 @@ var Speaker = Class({
 			failure.setSourceDescription("Unknown");
 		}
 		// 设置 cellet identifier
-		failure.setSourceCelletIdentifier(this.identifier);
+		failure.setSourceCelletIdentifiers(this.identifiers);
 
 		this.delegate.onFailed(this, failure);
 	}

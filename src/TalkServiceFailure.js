@@ -72,7 +72,7 @@ var TalkServiceFailure = Class({
 		}
 
 		this.sourceDescription = "";
-		this.sourceCelletIdentifier = "";
+		this.sourceCelletIdentifiers = null;
 	},
 
 	getCode: function() {
@@ -95,11 +95,11 @@ var TalkServiceFailure = Class({
 		this.sourceDescription = desc;
 	},
 
-	getSourceCelletIdentifier: function() {
-		return this.sourceCelletIdentifier;
+	getSourceCelletIdentifiers: function() {
+		return this.sourceCelletIdentifiers;
 	},
 
-	setSourceCelletIdentifier: function(celletIdentifier) {
-		this.sourceCelletIdentifier = celletIdentifier;
+	setSourceCelletIdentifiers: function(celletIdentifierList) {
+		this.sourceCelletIdentifiers = celletIdentifierList;
 	}
 });

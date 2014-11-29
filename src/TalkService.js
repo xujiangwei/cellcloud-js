@@ -31,31 +31,31 @@ var _DelegateProxy = Class(SpeakerDelegate, {
 		this.service = service;
 	},
 
-	onDialogue: function(speaker, primitive) {
+	onDialogue: function(speaker, celletIdentifier, primitive) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].dialogue(speaker.identifier, primitive);
+			listeners[i].dialogue(celletIdentifier, primitive);
 		}
 	},
 
-	onContacted: function(speaker) {
+	onContacted: function(speaker, celletIdentifier) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].contacted(speaker.identifier, speaker.remoteTag);
+			listeners[i].contacted(celletIdentifier, speaker.remoteTag);
 		}
 	},
 
-	onQuitted: function(speaker) {
+	onQuitted: function(speaker, celletIdentifier) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].quitted(speaker.identifier, speaker.remoteTag);
+			listeners[i].quitted(celletIdentifier, speaker.remoteTag);
 		}
 	},
 
 	onFailed: function(speaker, failure) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].failed(speaker.identifier, speaker.remoteTag, failure);
+			listeners[i].failed(speaker.remoteTag, failure);
 		}
 	}
 });
@@ -74,8 +74,8 @@ var TalkService = Class(Service, {
 		this.speakers = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
 
-		// 默认 5 秒心跳
-		this.heartbeat = 5000;
+		// 默认 30 秒心跳
+		this.heartbeat = 30000;
 	},
 
 	startup: function() {
@@ -142,18 +142,23 @@ var TalkService = Class(Service, {
 		return true;
 	},
 
-	call: function(identifier, address) {
-		var speaker = null;
-		if (this.speakers.containsKey(identifier)) {
-			speaker = this.speakers.get(identifier);
+	call: function(identifiers, address, socketEnabled) {
+		for (var i = 0; i < identifiers.length; ++i) {
+			var identifier = identifiers[i];
+			if (this.speakers.containsKey(identifier)) {
+				return false;
+			}
 		}
-		else {
-			speaker = new Speaker(window.nucleus.tag, identifier, this.delegateProxy);
-			speaker.heartbeat = this.heartbeat;
+
+		var speaker = new Speaker(window.nucleus.tag, address, this.delegateProxy, socketEnabled);
+		speaker.heartbeat = this.heartbeat;
+
+		for (var i = 0; i < identifiers.length; ++i) {
+			var identifier = identifiers[i];
 			this.speakers.put(identifier, speaker);
 		}
 
-		return speaker.call(address);
+		return speaker.call(identifiers);
 	},
 
 	hangUp: function(identifier) {
@@ -172,7 +177,7 @@ var TalkService = Class(Service, {
 				// 方言转原语
 				var primitive = mix.translate();
 				if (null != primitive) {
-					return speaker.speak(primitive);
+					return speaker.speak(identifier, primitive);
 				}
 				else {
 					Logger.e("TalkService", "Failed translates dialect to primitive.");
@@ -181,8 +186,11 @@ var TalkService = Class(Service, {
 			}
 			else {
 				// 直接操作原语
-				return speaker.speak(mix);
+				return speaker.speak(identifier, mix);
 			}
+		}
+		else {
+			Logger.w("TalkService", "Can not find '" + identifier + "' cellet in speaker.");
 		}
 
 		return false;

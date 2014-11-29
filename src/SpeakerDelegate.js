@@ -34,15 +34,15 @@ var SpeakerDelegate = Class({
 	ctor: function() {
 	},
 
-	onDialogue: function(speaker, primitive) {
+	onDialogue: function(speaker, identifier, primitive) {
 		// Nothing
 	},
 
-	onContacted: function(speaker) {
+	onContacted: function(speaker, identifier) {
 		// Nothing
 	},
 
-	onQuitted: function(speaker) {
+	onQuitted: function(speaker, identifier) {
 		// Nothing
 	},
 

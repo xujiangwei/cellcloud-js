@@ -28,10 +28,19 @@ THE SOFTWARE.
  * 核心类。
  */
 var Nucleus = Class(Service, {
+	// 版本信息
+	version: {major: 1, minor: 1, revision: 0, name: "Journey"},
+
 	ctor: function() {
 		this.tag = UUID.v4();
 		this.talkService = null;
 		this.ts = null;
+
+		if (undefined !== window.console) {
+			window.console.log("Cell Cloud "+ this.version.major
+				+ "." + this.version.minor + "." + this.version.revision
+				+ " (Build JavaScript/Web - " + this.version.name + ")");
+		}
 	},
 
 	startup: function() {
