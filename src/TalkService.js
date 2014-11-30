@@ -85,7 +85,7 @@ var TalkService = Class(Service, {
 		DialectEnumerator.getInstance().addFactory(adf);
 
 		// 启动定时任务
-		Logger.i("TalkService", "Heartbeat period is " + this.heartbeat + " ms");
+		Logger.i("TalkService", "Tick period is " + this.tickTime + " ms");
 		this._tickFunction();
 
 		return true;
@@ -117,10 +117,18 @@ var TalkService = Class(Service, {
 		return (this.listeners.indexOf(listener) >= 0);
 	},
 
+	isWebSocketSupported: function() {
+		return (undefined !== window.WebSocket);
+	},
+
 	/** 重置心跳周期。
 	 */
 	resetHeartbeat: function(identifier, heartbeat) {
 		if (heartbeat < 2000) {
+			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
+			return false;
+		}
+		if (null != this.socket && heartbeat < 60000) {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}

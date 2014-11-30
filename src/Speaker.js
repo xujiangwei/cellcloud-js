@@ -100,23 +100,16 @@ var Speaker = Class({
 
 		this.state = SpeakerState.CALLING;
 
-		if (this.wsEnabled && null == this.socket) {
-			// 如果启用 WebSocket 端口号 +1
-			this._startSocket(this.address.getAddress(), this.address.getPort() + 1);
+		if (this.wsEnabled) {
+			if (null != this.socket) {
+				this.socket.close(1000, "Speaker#close");
+			}
+			// WebSocket 的端口号，是 HTTP 服务端口号 +1
+			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
 		}
 
 		var self = this;
-		if (null != this.socket) {
-			// OPEN - 1
-			if (this.socket.readyState == 1) {
-				// 已经连接则直接发送数据
-				var msg = {
-					cell: "interrogate"
-				};
-				this.socket.send(JSON.stringify(msg));
-			}
-		}
-		else {
+		if (null == this.socket) {
 			this.request = Ajax.newCrossDomain(this.address.getAddress(), this.address.getPort())
 				.uri("/talk/int")
 				.method("GET")
@@ -246,28 +239,35 @@ var Speaker = Class({
 			});
 	},
 
-	_startSocket: function(address, port) {
+	_createSocket: function(address, port) {
+		if (undefined === window.WebSocket) {
+			return null;
+		}
+
 		var self = this;
-		this.socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
-		this.socket.onopen = function(event) { self._onSocketOpen(event); };
-		this.socket.onclose = function(event) { self._onSocketClose(event); };
-		this.socket.onmessage = function(event) { self._onSocketMessage(event); };
-		this.socket.onerror = function(event) { self._onSocketError(event); };
+		var socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
+		socket.onopen = function(event) { self._onSocketOpen(event); };
+		socket.onclose = function(event) { self._onSocketClose(event); };
+		socket.onmessage = function(event) { self._onSocketMessage(event); };
+		socket.onerror = function(event) { self._onSocketError(event); };
+		return socket;
 	},
 
 	_onSocketOpen: function(event) {
 		console.log('_onSocketOpen');
 
-		var msg = {
-			cell: "interrogate"
-		};
-		this.socket.send(JSON.stringify(msg));
+		//this.socket.send(JSON.stringify(data));
 	},
 	_onSocketClose: function(event) {
 		console.log('_onSocketClose');
 	},
 	_onSocketMessage: function(event) {
 		console.log('_onSocketMessage: ' + event.data);
+
+		var data = JSON.parse(event.data);
+		if (data.tpt == 'interrogate') {
+			this._processInterrogation(data.packet);
+		}
 	},
 	_onSocketError: function(event) {
 		console.log('_onSocketError');
@@ -277,6 +277,7 @@ var Speaker = Class({
 		var ciphertextBase64 = data.ciphertext;	// string
 		var key = data.key;		// string
 		var ciphertext = Base64.decode(ciphertextBase64);	// string - bytes
+
 		// 请求 Check
 		this._requestCheck(ciphertext, key);
 	},
@@ -293,17 +294,22 @@ var Speaker = Class({
 
 		var self = this;
 		var content = {"plaintext": text, "tag": self.tag};
-		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
-			.uri("/talk/check")
-			.method("POST")
-			.cookie(self.cookie)
-			.content(content)
-			.error(self._fireFailed, self)
-			.send(function(data) {
-				// Tag
-				self.remoteTag = data.tag;
-				self._requestCellets();
-			});
+
+		if (null != this.socket) {
+		}
+		else {
+			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+				.uri("/talk/check")
+				.method("POST")
+				.cookie(self.cookie)
+				.content(content)
+				.error(self._fireFailed, self)
+				.send(function(data) {
+					// Tag
+					self.remoteTag = data.tag;
+					self._requestCellets();
+				});
+		}
 	},
 
 	_requestCellets: function() {
