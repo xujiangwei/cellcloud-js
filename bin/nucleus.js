@@ -2496,7 +2496,7 @@ var TalkListener = Class({
 
 	/** 发生错误。
 	 */
-	failed: function(identifier, tag, failure) {
+	failed: function(tag, failure) {
 	}
 });
 /*
@@ -2573,7 +2573,7 @@ var TalkServiceFailure = Class({
 		}
 
 		this.sourceDescription = "";
-		this.sourceCelletIdentifier = "";
+		this.sourceCelletIdentifiers = null;
 	},
 
 	getCode: function() {
@@ -2596,12 +2596,12 @@ var TalkServiceFailure = Class({
 		this.sourceDescription = desc;
 	},
 
-	getSourceCelletIdentifier: function() {
-		return this.sourceCelletIdentifier;
+	getSourceCelletIdentifiers: function() {
+		return this.sourceCelletIdentifiers;
 	},
 
-	setSourceCelletIdentifier: function(celletIdentifier) {
-		this.sourceCelletIdentifier = celletIdentifier;
+	setSourceCelletIdentifiers: function(celletIdentifierList) {
+		this.sourceCelletIdentifiers = celletIdentifierList;
 	}
 });
 /*
@@ -2640,15 +2640,15 @@ var SpeakerDelegate = Class({
 	ctor: function() {
 	},
 
-	onDialogue: function(speaker, primitive) {
+	onDialogue: function(speaker, identifier, primitive) {
 		// Nothing
 	},
 
-	onContacted: function(speaker) {
+	onContacted: function(speaker, identifier) {
 		// Nothing
 	},
 
-	onQuitted: function(speaker) {
+	onQuitted: function(speaker, identifier) {
 		// Nothing
 	},
 
@@ -2706,16 +2706,22 @@ var SpeakerState = {
  * @author Jiangwei Xu
  */
 var Speaker = Class({
-	ctor: function(tag, identifier, delegate) {
+	ctor: function(tag, address, delegate, socketEnabled) {
 		this.tag = tag;
-		this.identifier = identifier;
+		this.address = address;
 		this.delegate = delegate;
+		this.identifiers = [];
+
+		// 是否使用 WebSocket
+		this.wsEnabled = (socketEnabled !== undefined && socketEnabled) ? true : false;
+		// WebSocket
+		this.socket = null;
+
 		// 状态
 		this.state = SpeakerState.HANGUP;
 		// 是否授权可访问
 		this.authenticated = false;
-		// 地址
-		this.address = null;
+
 		// Ajax 请求句柄
 		this.request = null;
 		// Cookie
@@ -2725,26 +2731,59 @@ var Speaker = Class({
 		this.remoteTag = null;
 
 		// tick 时间戳
-		this.tickTime = null;
-		this.heartbeat = 5000;
+		this.tickTime = new Date();
+		// 使用 Socket 的心跳间隔是 2 分钟，使用 HTTP 的心跳间隔是 5 秒
+		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 2 * 60 * 1000 : 5000;
 	},
 
-	call: function(address) {
+	call: function(identifiers) {
 		if (this.state == SpeakerState.CALLING)
 			return false;
 
-		var self = this;
-		this.address = address;
+		if (null != identifiers) {
+			for (var i = 0; i < identifiers.length; ++i) {
+				var identifier = identifiers[i];
+				if (this.identifiers.indexOf(identifier) >= 0) {
+					continue;
+				}
+
+				this.identifiers.push(identifier);
+			}
+		}
+
+		if (this.identifiers.length == 0) {
+			Logger.e("Speaker", "Can not find any cellets to call in param 'identifiers'.");
+			return false;
+		}
+
 		this.state = SpeakerState.CALLING;
 
-		this.request = Ajax.newCrossDomain(address.getAddress(), address.getPort())
-			.uri("/talk/int")
-			.method("GET")
-			.error(self._fireFailed, self)
-			.send(function(data, cookie) {
-				self.cookie = cookie;
-				self._processInterrogation(data);
-			});
+		if (this.wsEnabled && null == this.socket) {
+			// 如果启用 WebSocket 端口号 +1
+			this._startSocket(this.address.getAddress(), this.address.getPort() + 1);
+		}
+
+		var self = this;
+		if (null != this.socket) {
+			// OPEN - 1
+			if (this.socket.readyState == 1) {
+				// 已经连接则直接发送数据
+				var msg = {
+					cell: "interrogate"
+				};
+				this.socket.send(JSON.stringify(msg));
+			}
+		}
+		else {
+			this.request = Ajax.newCrossDomain(this.address.getAddress(), this.address.getPort())
+				.uri("/talk/int")
+				.method("GET")
+				.error(self._fireFailed, self)
+				.send(function(data, cookie) {
+					self.cookie = cookie;
+					self._processInterrogation(data);
+				});
+		}
 
 		return true;
 	},
@@ -2754,8 +2793,13 @@ var Speaker = Class({
 		// TODO
 	},
 
-	speak: function(primitive) {
+	speak: function(identifier, primitive) {
 		if (this.state != SpeakerState.CALLED) {
+			return false;
+		}
+
+		if (this.identifiers.indexOf(identifier) < 0) {
+			// 没有找到对应请求的 Cellet
 			return false;
 		}
 
@@ -2766,6 +2810,7 @@ var Speaker = Class({
 		PrimitiveSerializer.write(primJSON, primitive);
 		var content = {
 			"tag": self.tag,
+			"identifier": identifier,
 			"primitive": primJSON
 		};
 
@@ -2790,18 +2835,30 @@ var Speaker = Class({
 					//}
 				//}
 
-				// 数据样本: "{"primitives":[{"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}],"version":"1.0"}]}"
-				var primitives = data["primitives"];
+				/* 数据样本:
+				{"primitives":
+				   [
+				     {
+				       "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
+				       , "identifier": "DummeyCellet"
+				     }
+				   ]
+				}
+				*/
+				var primitives = data.primitives;
 				if (undefined !== primitives) {
 					// 解析数据
 					for (var i = 0; i < primitives.length; ++i) {
-						self._doDialogue(primitives[i]);
+						var item = primitives[i];
+						self._doDialogue(item.identifier, item.primitive);
 					}
 				}
-				else if (parseInt(data["queue"]) > 0) {
+				else if (parseInt(data.queue) > 0) {
 					self.tick();
 				}
 			});
+
+		return true;
 	},
 
 	tick: function() {
@@ -2811,7 +2868,13 @@ var Speaker = Class({
 
 		var self = this;
 
-		//self.tickTime = new Date();
+		var time = new Date();
+
+		if (time.getTime() - self.tickTime.getTime() < this.heartbeat) {
+			return;
+		}
+
+		self.tickTime = time;
 
 		// 请求心跳
 		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
@@ -2820,16 +2883,52 @@ var Speaker = Class({
 			.cookie(self.cookie)
 			.error(self._fireFailed, self)
 			.send(function(data) {
-				// 数据样本: "{"primitives":[{"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}],"version":"1.0"}]}"
-				var primitives = data["primitives"];
+				/* 数据样本:
+				{"primitives":
+				   [
+				     {
+				       "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
+				       , "identifier": "DummeyCellet"
+				     }
+				   ]
+				}
+				*/
+				var primitives = data.primitives;
 				if (undefined !== primitives) {
-					//console.log(JSON.stringify(data));
 					// 解析数据
 					for (var i = 0; i < primitives.length; ++i) {
-						self._doDialogue(primitives[i]);
+						var item = primitives[i];
+						self._doDialogue(item.identifier, item.primitive);
 					}
 				}
 			});
+	},
+
+	_startSocket: function(address, port) {
+		var self = this;
+		this.socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
+		this.socket.onopen = function(event) { self._onSocketOpen(event); };
+		this.socket.onclose = function(event) { self._onSocketClose(event); };
+		this.socket.onmessage = function(event) { self._onSocketMessage(event); };
+		this.socket.onerror = function(event) { self._onSocketError(event); };
+	},
+
+	_onSocketOpen: function(event) {
+		console.log('_onSocketOpen');
+
+		var msg = {
+			cell: "interrogate"
+		};
+		this.socket.send(JSON.stringify(msg));
+	},
+	_onSocketClose: function(event) {
+		console.log('_onSocketClose');
+	},
+	_onSocketMessage: function(event) {
+		console.log('_onSocketMessage: ' + event.data);
+	},
+	_onSocketError: function(event) {
+		console.log('_onSocketError');
 	},
 
 	_processInterrogation: function(data) {
@@ -2851,7 +2950,7 @@ var Speaker = Class({
 		text = text.join('');
 
 		var self = this;
-		var content = {"plaintext" : text};
+		var content = {"plaintext": text, "tag": self.tag};
 		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
 			.uri("/talk/check")
 			.method("POST")
@@ -2861,52 +2960,73 @@ var Speaker = Class({
 			.send(function(data) {
 				// Tag
 				self.remoteTag = data.tag;
-				self._requestCellet();
+				self._requestCellets();
 			});
 	},
 
-	_requestCellet: function() {
+	_requestCellets: function() {
 		var self = this;
-		var content = {
-			"identifier": self.identifier,
-			"tag": self.tag
-		};
-		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
-			.uri("/talk/request")
-			.method("POST")
-			.cookie(self.cookie)
-			.content(content)
-			.error(self._fireFailed, self)
-			.send(function(data) {
-				Logger.i("Speaker", "Cellet '" + self.identifier + "' has called at " + self.address.getAddress() + ":" + self.address.getPort());
 
-				// 更新状态
-				self.state = SpeakerState.CALLED;
+		for (var i = 0; i < self.identifiers.length; ++i) {
+			var identifier = self.identifiers[i];
+			var content = {
+				"identifier": identifier.toString(),
+				"tag": self.tag
+			};
+			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+				.uri("/talk/request")
+				.method("POST")
+				.cookie(self.cookie)
+				.content(content)
+				.error(self._fireFailed, self)
+				.send(function(data) {
+					if (undefined !== data.error) {
+						// 创建失败
+						var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
+						failure.setSourceDescription("Can not find cellet '" + data.identifier + "'");
+						failure.setSourceCelletIdentifiers(self.identifiers);
+						self.state = SpeakerState.HANGUP;		// 更新状态
+						// 回调失败
+						self.delegate.onFailed(self, failure);
+					}
+					else {
+						if (self.state == SpeakerState.HANGUP) {
+							// 已经有失败的请求，则不再记录成功的请求
+							return;
+						}
 
-				// 回调事件
-				self._fireContacted();
-			});
+						Logger.i("Speaker", "Cellet '" + data.identifier + "' has called at " +
+								self.address.getAddress() + ":" + self.address.getPort());
+
+						// 更新状态
+						self.state = SpeakerState.CALLED;
+
+						// 回调事件
+						self._fireContacted(data.identifier);
+					}
+				});
+		}
 	},
 
-	_doDialogue: function(json) {
+	_doDialogue: function(identifier, primitiveJson) {
 		// 创建原语
 		var primitive = new Primitive(this.remoteTag);
-		primitive.setCelletIdentifier(this.identifier);
+		primitive.setCelletIdentifier(identifier);
 
 		// 读取数据
-		PrimitiveSerializer.read(primitive, json);
+		PrimitiveSerializer.read(primitive, primitiveJson);
 
-		this._fireDialogue(primitive);
+		this._fireDialogue(identifier, primitive);
 	},
 
-	_fireDialogue: function(primitive) {
-		this.delegate.onDialogue(this, primitive);
+	_fireDialogue: function(identifier, primitive) {
+		this.delegate.onDialogue(this, identifier, primitive);
 	},
-	_fireContacted: function() {
-		this.delegate.onContacted(this);
+	_fireContacted: function(identifier) {
+		this.delegate.onContacted(this, identifier);
 	},
-	_fireQuitted: function() {
-		this.delegate.onQuitted(this);
+	_fireQuitted: function(identifier) {
+		this.delegate.onQuitted(this, identifier);
 	},
 	_fireFailed: function(request, code) {
 		var failure = null;
@@ -2914,34 +3034,38 @@ var Speaker = Class({
 			if (this.state == SpeakerState.CALLING) {
 				failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
 				failure.setSourceDescription("Attempt to connect to host timed out");
-
-				// 更新状态
-				this.state = SpeakerState.HANGUP;
 			}
 			else {
 				failure = new TalkServiceFailure(TalkFailureCode.TALK_LOST, "Speaker");
 				failure.setSourceDescription("Attempt to connect to host timed out");
 			}
+
+			// 更新状态
+			this.state = SpeakerState.HANGUP;
 		}
 		else if (code == HttpErrorCode.STATUS_ERROR) {
 			if (this.state == SpeakerState.CALLING) {
 				failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
 				failure.setSourceDescription("Http status error");
-
-				// 更新状态
-				this.state = SpeakerState.HANGUP;
 			}
 			else {
 				failure = new TalkServiceFailure(TalkFailureCode.TALK_LOST, "Speaker");
 				failure.setSourceDescription("Http status error");
 			}
+
+			// 更新状态
+			this.state = SpeakerState.HANGUP;
 		}
 		else {
 			failure = new TalkServiceFailure(TalkFailureCode.UNKNOWN, "Speaker");
 			failure.setSourceDescription("Unknown");
+
+			// 更新状态
+			this.state = SpeakerState.HANGUP;
 		}
+
 		// 设置 cellet identifier
-		failure.setSourceCelletIdentifier(this.identifier);
+		failure.setSourceCelletIdentifiers(this.identifiers);
 
 		this.delegate.onFailed(this, failure);
 	}
@@ -2979,31 +3103,31 @@ var _DelegateProxy = Class(SpeakerDelegate, {
 		this.service = service;
 	},
 
-	onDialogue: function(speaker, primitive) {
+	onDialogue: function(speaker, celletIdentifier, primitive) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].dialogue(speaker.identifier, primitive);
+			listeners[i].dialogue(celletIdentifier, primitive);
 		}
 	},
 
-	onContacted: function(speaker) {
+	onContacted: function(speaker, celletIdentifier) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].contacted(speaker.identifier, speaker.remoteTag);
+			listeners[i].contacted(celletIdentifier, speaker.remoteTag);
 		}
 	},
 
-	onQuitted: function(speaker) {
+	onQuitted: function(speaker, celletIdentifier) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].quitted(speaker.identifier, speaker.remoteTag);
+			listeners[i].quitted(celletIdentifier, speaker.remoteTag);
 		}
 	},
 
 	onFailed: function(speaker, failure) {
 		var listeners = this.service.listeners;
 		for (var i = 0; i < listeners.length; ++i) {
-			listeners[i].failed(speaker.identifier, speaker.remoteTag, failure);
+			listeners[i].failed(speaker.remoteTag, failure);
 		}
 	}
 });
@@ -3019,11 +3143,12 @@ var TalkService = Class(Service, {
 
 		this.daemonTimer = 0;
 		this.listeners = new Array();
-		this.speakers = new HashMap();
+		this.speakers = new Array();
+		this.speakerMap = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
 
-		// 默认 5 秒心跳
-		this.heartbeat = 5000;
+		// 默认 5 秒一次 tick
+		this.tickTime = 5000;
 	},
 
 	startup: function() {
@@ -3033,14 +3158,14 @@ var TalkService = Class(Service, {
 
 		// 启动定时任务
 		Logger.i("TalkService", "Heartbeat period is " + this.heartbeat + " ms");
-		this._hbFunction();
+		this._tickFunction();
 
 		return true;
 	},
 
 	shutdown: function() {
 		if (this.daemonTimer > 0) {
-			clearInterval(this.daemonTimer);
+			clearTimeout(this.daemonTimer);
 			this.daemonTimer = 0;
 		}
 	},
@@ -3066,61 +3191,101 @@ var TalkService = Class(Service, {
 
 	/** 重置心跳周期。
 	 */
-	resetHeartbeat: function(heartbeat) {
-		if (this.heartbeat == heartbeat || heartbeat < 2000) {
+	resetHeartbeat: function(identifier, heartbeat) {
+		if (heartbeat < 2000) {
+			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
 
-		clearTimeout(this.daemonTimer);
-
-		// 重置心跳周期
-		this.heartbeat = heartbeat;
-
-		// 重置 Speaker
-		var list = this.speakers.values();
-		for (var i = 0; i < list.length; ++i) {
-			list[i].heartbeat = heartbeat;
+		// 如果心跳小于 5 秒，则缩短 tick 间隔
+		if (heartbeat < 5000) {
+			this.tickTime = 2000;
+		}
+		else {
+			this.tickTime = 5000;
 		}
 
-		Logger.i("TalkService", "Reset heartbeat period is " + this.heartbeat + " ms");
+		clearTimeout(this.daemonTimer);
+		this.daemonTimer = 0;
+
+		// 重置 Speaker 心跳
+		var speaker = this.speakerMap.get(identifier);
+		if (null != speaker) {
+			speaker.heartbeat = heartbeat;
+		}
+		else {
+			Logger.e("TalkService", "Reset '"+ identifier +"' heartbeat Failed");
+		}
+
+		Logger.i("TalkService", "Reset '" + identifier + "' heartbeat period is " + heartbeat + " ms");
 
 		// 启动执行
-		this._hbFunction();
+		this._tickFunction();
 
 		return true;
 	},
 
-	call: function(identifier, address) {
-		var speaker = null;
-		if (this.speakers.containsKey(identifier)) {
-			speaker = this.speakers.get(identifier);
-		}
-		else {
-			speaker = new Speaker(window.nucleus.tag, identifier, this.delegateProxy);
-			speaker.heartbeat = this.heartbeat;
-			this.speakers.put(identifier, speaker);
+	call: function(identifiers, address, socketEnabled) {
+		for (var i = 0; i < identifiers.length; ++i) {
+			var identifier = identifiers[i];
+			if (this.speakerMap.containsKey(identifier)) {
+				return false;
+			}
 		}
 
-		return speaker.call(address);
+		// 创建新的 Speaker
+		var speaker = new Speaker(window.nucleus.tag, address, this.delegateProxy, socketEnabled);
+		this.speakers.push(speaker);
+
+		for (var i = 0; i < identifiers.length; ++i) {
+			var identifier = identifiers[i];
+			this.speakerMap.put(identifier, speaker);
+		}
+
+		return speaker.call(identifiers);
+	},
+
+	recall: function() {
+		if (this.speakers.length == 0) {
+			return false;
+		}
+
+		for (var i = 0; i < this.speakers.length; ++i) {
+			var speaker = this.speakers[i];
+			if (speaker.state != SpeakerState.CALLED) {
+				speaker.call(null);
+			}
+		}
+
+		return true;
 	},
 
 	hangUp: function(identifier) {
-		var speaker = this.speakers.get(identifier);
+		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
+			// 执行 hang up
 			speaker.hangUp();
 
-			this.speakers.remove(identifier);
+			for (var i = 0, size = speaker.identifiers.length; i < size; ++i) {
+				var id = speaker.identifiers[i];
+				this.speakerMap.remove(id);
+			}
+
+			var index = -1;
+			if ((index = this.speakers.indexOf(speaker)) >= 0) {
+				this.speakers.splice(index, 1);
+			}
 		}
 	},
 
 	talk: function(identifier, mix) {
-		var speaker = this.speakers.get(identifier);
+		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
 			if (undefined !== mix.translate) {
 				// 方言转原语
 				var primitive = mix.translate();
 				if (null != primitive) {
-					return speaker.speak(primitive);
+					return speaker.speak(identifier, primitive);
 				}
 				else {
 					Logger.e("TalkService", "Failed translates dialect to primitive.");
@@ -3129,22 +3294,25 @@ var TalkService = Class(Service, {
 			}
 			else {
 				// 直接操作原语
-				return speaker.speak(mix);
+				return speaker.speak(identifier, mix);
 			}
+		}
+		else {
+			Logger.w("TalkService", "Can not find '" + identifier + "' cellet in speaker.");
 		}
 
 		return false;
 	},
 
 	isCalled: function(identifier) {
-		var speaker = this.speakers.get(identifier);
+		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
 			return (speaker.state == SpeakerState.CALLED);
 		}
 		return false;
 	},
 
-	_hbFunction: function() {
+	_tickFunction: function() {
 		var self = this;
 
 		if (self.daemonTimer > 0) {
@@ -3159,16 +3327,15 @@ var TalkService = Class(Service, {
 			self._exeDaemonTask();
 
 			// 循环执行
-			self._hbFunction();
-		}, self.heartbeat);
+			self._tickFunction();
+		}, self.tickTime);
 	},
 
 	_exeDaemonTask: function() {
 		// 驱动 Speaker 进行心跳
-		if (this.speakers.size() > 0) {
-			var list = this.speakers.values();
-			for (var i = 0; i < list.length; ++i) {
-				list[i].tick();
+		if (this.speakers.length > 0) {
+			for (var i = 0; i < this.speakers.length; ++i) {
+				this.speakers[i].tick();
 			}
 		}
 	}
@@ -3211,10 +3378,19 @@ THE SOFTWARE.
  * 核心类。
  */
 var Nucleus = Class(Service, {
+	// 版本信息
+	version: {major: 1, minor: 1, revision: 0, name: "Journey"},
+
 	ctor: function() {
 		this.tag = UUID.v4();
 		this.talkService = null;
 		this.ts = null;
+
+		if (undefined !== window.console) {
+			window.console.log("Cell Cloud "+ this.version.major
+				+ "." + this.version.minor + "." + this.version.revision
+				+ " (Build JavaScript/Web - " + this.version.name + ")");
+		}
 	},
 
 	startup: function() {

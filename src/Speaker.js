@@ -74,7 +74,8 @@ var Speaker = Class({
 
 		// tick 时间戳
 		this.tickTime = new Date();
-		this.heartbeat = 30000;
+		// 使用 Socket 的心跳间隔是 2 分钟，使用 HTTP 的心跳间隔是 5 秒
+		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 2 * 60 * 1000 : 5000;
 	},
 
 	call: function(identifiers) {
@@ -90,6 +91,11 @@ var Speaker = Class({
 
 				this.identifiers.push(identifier);
 			}
+		}
+
+		if (this.identifiers.length == 0) {
+			Logger.e("Speaker", "Can not find any cellets to call in param 'identifiers'.");
+			return false;
 		}
 
 		this.state = SpeakerState.CALLING;
@@ -206,7 +212,7 @@ var Speaker = Class({
 
 		var time = new Date();
 
-		if (time.getTime() - self.tickTime.getTime() < 1000) {
+		if (time.getTime() - self.tickTime.getTime() < this.heartbeat) {
 			return;
 		}
 
@@ -370,32 +376,36 @@ var Speaker = Class({
 			if (this.state == SpeakerState.CALLING) {
 				failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
 				failure.setSourceDescription("Attempt to connect to host timed out");
-
-				// 更新状态
-				this.state = SpeakerState.HANGUP;
 			}
 			else {
 				failure = new TalkServiceFailure(TalkFailureCode.TALK_LOST, "Speaker");
 				failure.setSourceDescription("Attempt to connect to host timed out");
 			}
+
+			// 更新状态
+			this.state = SpeakerState.HANGUP;
 		}
 		else if (code == HttpErrorCode.STATUS_ERROR) {
 			if (this.state == SpeakerState.CALLING) {
 				failure = new TalkServiceFailure(TalkFailureCode.CALL_FAILED, "Speaker");
 				failure.setSourceDescription("Http status error");
-
-				// 更新状态
-				this.state = SpeakerState.HANGUP;
 			}
 			else {
 				failure = new TalkServiceFailure(TalkFailureCode.TALK_LOST, "Speaker");
 				failure.setSourceDescription("Http status error");
 			}
+
+			// 更新状态
+			this.state = SpeakerState.HANGUP;
 		}
 		else {
 			failure = new TalkServiceFailure(TalkFailureCode.UNKNOWN, "Speaker");
 			failure.setSourceDescription("Unknown");
+
+			// 更新状态
+			this.state = SpeakerState.HANGUP;
 		}
+
 		// 设置 cellet identifier
 		failure.setSourceCelletIdentifiers(this.identifiers);
 

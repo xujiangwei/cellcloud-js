@@ -71,11 +71,12 @@ var TalkService = Class(Service, {
 
 		this.daemonTimer = 0;
 		this.listeners = new Array();
-		this.speakers = new HashMap();
+		this.speakers = new Array();
+		this.speakerMap = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
 
-		// 默认 30 秒心跳
-		this.heartbeat = 30000;
+		// 默认 5 秒一次 tick
+		this.tickTime = 5000;
 	},
 
 	startup: function() {
@@ -85,14 +86,14 @@ var TalkService = Class(Service, {
 
 		// 启动定时任务
 		Logger.i("TalkService", "Heartbeat period is " + this.heartbeat + " ms");
-		this._hbFunction();
+		this._tickFunction();
 
 		return true;
 	},
 
 	shutdown: function() {
 		if (this.daemonTimer > 0) {
-			clearInterval(this.daemonTimer);
+			clearTimeout(this.daemonTimer);
 			this.daemonTimer = 0;
 		}
 	},
@@ -118,26 +119,36 @@ var TalkService = Class(Service, {
 
 	/** 重置心跳周期。
 	 */
-	resetHeartbeat: function(heartbeat) {
-		if (this.heartbeat == heartbeat || heartbeat < 2000) {
+	resetHeartbeat: function(identifier, heartbeat) {
+		if (heartbeat < 2000) {
+			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
 
-		clearTimeout(this.daemonTimer);
-
-		// 重置心跳周期
-		this.heartbeat = heartbeat;
-
-		// 重置 Speaker
-		var list = this.speakers.values();
-		for (var i = 0; i < list.length; ++i) {
-			list[i].heartbeat = heartbeat;
+		// 如果心跳小于 5 秒，则缩短 tick 间隔
+		if (heartbeat < 5000) {
+			this.tickTime = 2000;
+		}
+		else {
+			this.tickTime = 5000;
 		}
 
-		Logger.i("TalkService", "Reset heartbeat period is " + this.heartbeat + " ms");
+		clearTimeout(this.daemonTimer);
+		this.daemonTimer = 0;
+
+		// 重置 Speaker 心跳
+		var speaker = this.speakerMap.get(identifier);
+		if (null != speaker) {
+			speaker.heartbeat = heartbeat;
+		}
+		else {
+			Logger.e("TalkService", "Reset '"+ identifier +"' heartbeat Failed");
+		}
+
+		Logger.i("TalkService", "Reset '" + identifier + "' heartbeat period is " + heartbeat + " ms");
 
 		// 启动执行
-		this._hbFunction();
+		this._tickFunction();
 
 		return true;
 	},
@@ -145,33 +156,58 @@ var TalkService = Class(Service, {
 	call: function(identifiers, address, socketEnabled) {
 		for (var i = 0; i < identifiers.length; ++i) {
 			var identifier = identifiers[i];
-			if (this.speakers.containsKey(identifier)) {
+			if (this.speakerMap.containsKey(identifier)) {
 				return false;
 			}
 		}
 
+		// 创建新的 Speaker
 		var speaker = new Speaker(window.nucleus.tag, address, this.delegateProxy, socketEnabled);
-		speaker.heartbeat = this.heartbeat;
+		this.speakers.push(speaker);
 
 		for (var i = 0; i < identifiers.length; ++i) {
 			var identifier = identifiers[i];
-			this.speakers.put(identifier, speaker);
+			this.speakerMap.put(identifier, speaker);
 		}
 
 		return speaker.call(identifiers);
 	},
 
+	recall: function() {
+		if (this.speakers.length == 0) {
+			return false;
+		}
+
+		for (var i = 0; i < this.speakers.length; ++i) {
+			var speaker = this.speakers[i];
+			if (speaker.state != SpeakerState.CALLED) {
+				speaker.call(null);
+			}
+		}
+
+		return true;
+	},
+
 	hangUp: function(identifier) {
-		var speaker = this.speakers.get(identifier);
+		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
+			// 执行 hang up
 			speaker.hangUp();
 
-			this.speakers.remove(identifier);
+			for (var i = 0, size = speaker.identifiers.length; i < size; ++i) {
+				var id = speaker.identifiers[i];
+				this.speakerMap.remove(id);
+			}
+
+			var index = -1;
+			if ((index = this.speakers.indexOf(speaker)) >= 0) {
+				this.speakers.splice(index, 1);
+			}
 		}
 	},
 
 	talk: function(identifier, mix) {
-		var speaker = this.speakers.get(identifier);
+		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
 			if (undefined !== mix.translate) {
 				// 方言转原语
@@ -197,14 +233,14 @@ var TalkService = Class(Service, {
 	},
 
 	isCalled: function(identifier) {
-		var speaker = this.speakers.get(identifier);
+		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
 			return (speaker.state == SpeakerState.CALLED);
 		}
 		return false;
 	},
 
-	_hbFunction: function() {
+	_tickFunction: function() {
 		var self = this;
 
 		if (self.daemonTimer > 0) {
@@ -219,16 +255,15 @@ var TalkService = Class(Service, {
 			self._exeDaemonTask();
 
 			// 循环执行
-			self._hbFunction();
-		}, self.heartbeat);
+			self._tickFunction();
+		}, self.tickTime);
 	},
 
 	_exeDaemonTask: function() {
 		// 驱动 Speaker 进行心跳
-		if (this.speakers.size() > 0) {
-			var list = this.speakers.values();
-			for (var i = 0; i < list.length; ++i) {
-				list[i].tick();
+		if (this.speakers.length > 0) {
+			for (var i = 0; i < this.speakers.length; ++i) {
+				this.speakers[i].tick();
 			}
 		}
 	}
