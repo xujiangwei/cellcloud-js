@@ -149,49 +149,58 @@ var Speaker = Class({
 			"primitive": primJSON
 		};
 
-		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
-			.uri("/talk/dialogue")
-			.method("POST")
-			.cookie(self.cookie)
-			.content(content)
-			.error(self._fireFailed, self)
-			.send(function(data) {
-				// FIXME 2014/10/03 以下做法无法保证请求效率，进行修改。
-				// 判断是否需要进行数据请求
-				//if (parseInt(data["queue"]) > 0) {
-					// 直接进行数据请求
-					//self.tick();
+		if (null != this.socket) {
+			var data = {
+				"tpt": "dialogue",
+				"packet": content
+			};
+			this.socket.send(JSON.stringify(data));
+		}
+		else {
+			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+				.uri("/talk/dialogue")
+				.method("POST")
+				.cookie(self.cookie)
+				.content(content)
+				.error(self._fireFailed, self)
+				.send(function(data) {
+					// FIXME 2014/10/03 以下做法无法保证请求效率，进行修改。
+					// 判断是否需要进行数据请求
+					//if (parseInt(data["queue"]) > 0) {
+						// 直接进行数据请求
+						//self.tick();
 
-					// FIXME 2014/09/18 判断心跳间隔，如在可控阀值区间，则补偿一次的 tick
-					//var t = new Date();
-					//if (self.tickTime != null
-					//	&& (t.getTime() - self.tickTime.getTime()) >= self.heartbeat) {
-					//		self.tick();
+						// FIXME 2014/09/18 判断心跳间隔，如在可控阀值区间，则补偿一次的 tick
+						//var t = new Date();
+						//if (self.tickTime != null
+						//	&& (t.getTime() - self.tickTime.getTime()) >= self.heartbeat) {
+						//		self.tick();
+						//}
 					//}
-				//}
 
-				/* 数据样本:
-				{"primitives":
-				   [
-				     {
-				       "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
-				       , "identifier": "DummeyCellet"
-				     }
-				   ]
-				}
-				*/
-				var primitives = data.primitives;
-				if (undefined !== primitives) {
-					// 解析数据
-					for (var i = 0; i < primitives.length; ++i) {
-						var item = primitives[i];
-						self._doDialogue(item.identifier, item.primitive);
+					/* 数据样本:
+					{"primitives":
+					   [
+						 {
+						   "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
+						   , "identifier": "DummeyCellet"
+						 }
+					   ]
 					}
-				}
-				else if (parseInt(data.queue) > 0) {
-					self.tick();
-				}
-			});
+					*/
+					var primitives = data.primitives;
+					if (undefined !== primitives) {
+						// 解析数据
+						for (var i = 0; i < primitives.length; ++i) {
+							var item = primitives[i];
+							self._doDialogue(item.identifier, item.primitive);
+						}
+					}
+					else if (parseInt(data.queue) > 0) {
+						self.tick();
+					}
+				});
+		}
 
 		return true;
 	},
@@ -205,38 +214,46 @@ var Speaker = Class({
 
 		var time = new Date();
 
-		if (time.getTime() - self.tickTime.getTime() < this.heartbeat) {
+		if (time.getTime() - self.tickTime.getTime() < self.heartbeat) {
 			return;
 		}
 
 		self.tickTime = time;
 
-		// 请求心跳
-		self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
-			.uri("/talk/hb")
-			.method("GET")
-			.cookie(self.cookie)
-			.error(self._fireFailed, self)
-			.send(function(data) {
-				/* 数据样本:
-				{"primitives":
-				   [
-				     {
-				       "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
-				       , "identifier": "DummeyCellet"
-				     }
-				   ]
-				}
-				*/
-				var primitives = data.primitives;
-				if (undefined !== primitives) {
-					// 解析数据
-					for (var i = 0; i < primitives.length; ++i) {
-						var item = primitives[i];
-						self._doDialogue(item.identifier, item.primitive);
+		if (null != self.socket) {
+			var data = {
+				tpt: "hb"
+			};
+			self.socket.send(JSON.stringify(data));
+		}
+		else {
+			// 请求心跳
+			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+				.uri("/talk/hb")
+				.method("GET")
+				.cookie(self.cookie)
+				.error(self._fireFailed, self)
+				.send(function(data) {
+					/* 数据样本:
+					{"primitives":
+					   [
+						 {
+						   "primitive": {"stuffs":[{"value":"This is a test.","type":"sub","literal":"string"}], "version":"1.0"}
+						   , "identifier": "DummeyCellet"
+						 }
+					   ]
 					}
-				}
-			});
+					*/
+					var primitives = data.primitives;
+					if (undefined !== primitives) {
+						// 解析数据
+						for (var i = 0; i < primitives.length; ++i) {
+							var item = primitives[i];
+							self._doDialogue(item.identifier, item.primitive);
+						}
+					}
+				});
+		}
 	},
 
 	_createSocket: function(address, port) {
@@ -254,23 +271,57 @@ var Speaker = Class({
 	},
 
 	_onSocketOpen: function(event) {
-		console.log('_onSocketOpen');
-
-		//this.socket.send(JSON.stringify(data));
+		Logger.d('Speaker', '_onSocketOpen');
 	},
 	_onSocketClose: function(event) {
-		console.log('_onSocketClose');
+		Logger.d('Speaker', '_onSocketClose');
+
+		if (this.state == SpeakerState.CALLED) {
+			for (var i = 0; i < this.identifiers.length; ++i) {
+				this._fireQuitted(this.identifiers[i]);
+			}
+		}
+
+		// TODO 如果是主动关闭的则不认为是发生错误
+		if (this.state == SpeakerState.CALLING
+			|| this.state == SpeakerState.CALLED) {
+			this._fireFailed(this.socket, HttpErrorCode.STATUS_ERROR);
+		}
 	},
 	_onSocketMessage: function(event) {
-		console.log('_onSocketMessage: ' + event.data);
+		//Logger.d('Speaker', '_onSocketMessage: ' + event.data);
 
 		var data = JSON.parse(event.data);
-		if (data.tpt == 'interrogate') {
+		if (data.tpt == "dialogue") {
+			if (undefined !== data.packet.primitive) {
+				this._doDialogue(data.packet.identifier, data.packet.primitive);
+			}
+			else if (undefined !== data.packet.primitives) {
+				// 解析数据
+				for (var i = 0, size = data.packet.primitives.length; i < size; ++i) {
+					var item = data.packet.primitives[i];
+					this._doDialogue(item.identifier, item.primitive);
+				}
+			}
+		}
+		else if (data.tpt == "request") {
+			this._doReply(data.packet);
+		}
+		else if (data.tpt == "check") {
+			this.remoteTag = data.packet.tag;
+			this._requestCellets();
+		}
+		else if (data.tpt == 'interrogate') {
 			this._processInterrogation(data.packet);
+		}
+		else {
+			Logger.e('Speaker', 'Unknown message received');
 		}
 	},
 	_onSocketError: function(event) {
-		console.log('_onSocketError');
+		Logger.d('Speaker', '_onSocketError');
+
+		this._fireFailed(this.socket, HttpErrorCode.NETWORK_FAILED);
 	},
 
 	_processInterrogation: function(data) {
@@ -292,12 +343,18 @@ var Speaker = Class({
 		}
 		text = text.join('');
 
-		var self = this;
-		var content = {"plaintext": text, "tag": self.tag};
+		var tag = this.tag;
+		var content = {"plaintext": text, "tag": tag};
 
 		if (null != this.socket) {
+			var data = {
+				tpt: "check",
+				packet: content
+			};
+			this.socket.send(JSON.stringify(data));
 		}
 		else {
+			var self = this;
 			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
 				.uri("/talk/check")
 				.method("POST")
@@ -313,46 +370,62 @@ var Speaker = Class({
 	},
 
 	_requestCellets: function() {
-		var self = this;
-
-		for (var i = 0; i < self.identifiers.length; ++i) {
-			var identifier = self.identifiers[i];
+		var tag = this.tag.toString();
+		for (var i = 0; i < this.identifiers.length; ++i) {
+			var identifier = this.identifiers[i];
 			var content = {
 				"identifier": identifier.toString(),
-				"tag": self.tag
+				"tag": tag
 			};
-			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
-				.uri("/talk/request")
-				.method("POST")
-				.cookie(self.cookie)
-				.content(content)
-				.error(self._fireFailed, self)
-				.send(function(data) {
-					if (undefined !== data.error) {
-						// 创建失败
-						var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
-						failure.setSourceDescription("Can not find cellet '" + data.identifier + "'");
-						failure.setSourceCelletIdentifiers(self.identifiers);
-						self.state = SpeakerState.HANGUP;		// 更新状态
-						// 回调失败
-						self.delegate.onFailed(self, failure);
-					}
-					else {
-						if (self.state == SpeakerState.HANGUP) {
-							// 已经有失败的请求，则不再记录成功的请求
-							return;
-						}
 
-						Logger.i("Speaker", "Cellet '" + data.identifier + "' has called at " +
-								self.address.getAddress() + ":" + self.address.getPort());
+			if (null != this.socket) {
+				var data = {
+					tpt: "request",
+					packet: content
+				};
+				this.socket.send(JSON.stringify(data));
+			}
+			else {
+				var self = this;
+				self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+					.uri("/talk/request")
+					.method("POST")
+					.cookie(self.cookie)
+					.content(content)
+					.error(self._fireFailed, self)
+					.send(function(data) {
+						self._doReply(data);
+					});
+			}
+		}
+	},
 
-						// 更新状态
-						self.state = SpeakerState.CALLED;
+	_doReply: function(data) {
+		if (undefined !== data.error) {
+			// 创建失败
+			var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
+			failure.setSourceDescription("Can not find cellet '" + data.identifier + "'");
+			failure.setSourceCelletIdentifiers(this.identifiers);
 
-						// 回调事件
-						self._fireContacted(data.identifier);
-					}
-				});
+			this.state = SpeakerState.HANGUP;		// 更新状态
+
+			// 回调失败
+			this.delegate.onFailed(this, failure);
+		}
+		else {
+			if (this.state == SpeakerState.HANGUP) {
+				// 已经有失败的请求，则不再记录成功的请求
+				return;
+			}
+
+			Logger.i("Speaker", "Cellet '" + data.identifier + "' has called at " +
+					this.address.getAddress() + ":" + (this.address.getPort() + ((null != this.socket) ? 1 : 0)));
+
+			// 更新状态
+			this.state = SpeakerState.CALLED;
+
+			// 回调事件
+			this._fireContacted(data.identifier);
 		}
 	},
 
@@ -376,7 +449,7 @@ var Speaker = Class({
 	_fireQuitted: function(identifier) {
 		this.delegate.onQuitted(this, identifier);
 	},
-	_fireFailed: function(request, code) {
+	_fireFailed: function(handler, code) {
 		var failure = null;
 		if (code == HttpErrorCode.NETWORK_FAILED) {
 			if (this.state == SpeakerState.CALLING) {
