@@ -2732,8 +2732,8 @@ var Speaker = Class({
 
 		// tick 时间戳
 		this.tickTime = new Date();
-		// 使用 Socket 的心跳间隔是 2 分钟，使用 HTTP 的心跳间隔是 5 秒
-		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 2 * 60 * 1000 : 5000;
+		// 使用 Socket 的心跳间隔是 60 秒，使用 HTTP 的心跳间隔是 10 秒
+		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 60 * 1000 : 10 * 1000;
 	},
 
 	call: function(identifiers) {
@@ -2782,8 +2782,18 @@ var Speaker = Class({
 	},
 
 	hangUp: function() {
-		this.state = SpeakerState.HANGUP;
-		// TODO
+		// TODO 发送 hang up 到服务器
+
+		if (null != this.socket) {
+			try {
+				this.socket.close(1000, "Speaker#close");
+			} catch (e) {
+				Logger.e("Speaker", "Close socket has exception.");
+			}
+			this.socket = null;
+		}
+
+		Logger.d("Speaker", "Hang up call.");
 	},
 
 	speak: function(identifier, primitive) {
@@ -2882,6 +2892,7 @@ var Speaker = Class({
 			var data = {
 				tpt: "hb"
 			};
+			Logger.i("Speaker", "Heartbeat to keep alive");
 			self.socket.send(JSON.stringify(data));
 		}
 		else {
@@ -2939,12 +2950,11 @@ var Speaker = Class({
 				this._fireQuitted(this.identifiers[i]);
 			}
 		}
-
-		// TODO 如果是主动关闭的则不认为是发生错误
-		if (this.state == SpeakerState.CALLING
-			|| this.state == SpeakerState.CALLED) {
+		else {
 			this._fireFailed(this.socket, HttpErrorCode.STATUS_ERROR);
 		}
+
+		this.state = SpeakerState.HANGUP;
 	},
 	_onSocketMessage: function(event) {
 		//Logger.d('Speaker', '_onSocketMessage: ' + event.data);
@@ -3279,7 +3289,7 @@ var TalkService = Class(Service, {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
-		if (null != this.socket && heartbeat < 60000) {
+		if (null != this.socket && heartbeat < 10000) {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}

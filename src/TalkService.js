@@ -128,7 +128,7 @@ var TalkService = Class(Service, {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
-		if (null != this.socket && heartbeat < 60000) {
+		if (null != this.socket && heartbeat < 10000) {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
