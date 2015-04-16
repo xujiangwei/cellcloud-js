@@ -70,6 +70,7 @@ var TalkService = Class(Service, {
 		TalkService.instance = this;
 
 		this.daemonTimer = 0;
+		this.recallTimer = 0;
 		this.listeners = new Array();
 		this.speakers = new Array();
 		this.speakerMap = new HashMap();
@@ -95,6 +96,11 @@ var TalkService = Class(Service, {
 		if (this.daemonTimer > 0) {
 			clearTimeout(this.daemonTimer);
 			this.daemonTimer = 0;
+		}
+
+		if (this.recallTimer > 0) {
+			clearTimeout(this.recallTimer);
+			this.recallTimer = 0;
 		}
 	},
 
@@ -186,12 +192,31 @@ var TalkService = Class(Service, {
 			return false;
 		}
 
+		if (this.recallTimer > 0) {
+			return;
+		}
+
 		for (var i = 0; i < this.speakers.length; ++i) {
 			var speaker = this.speakers[i];
 			if (speaker.state != SpeakerState.CALLED) {
-				speaker.call(null);
+				// hang up old speaker
+				speaker.hangUp();
 			}
 		}
+
+		var self = this;
+		this.recallTimer = setTimeout(function() {
+			clearTimeout(self.recallTimer);
+			self.recallTimer = 0;
+
+			for (var i = 0; i < self.speakers.length; ++i) {
+				var speaker = self.speakers[i];
+				if (speaker.state != SpeakerState.CALLED) {
+					// call without ids
+					speaker.call(null);
+				}
+			}
+		}, 5000);
 
 		return true;
 	},
@@ -199,13 +224,13 @@ var TalkService = Class(Service, {
 	hangUp: function(identifier) {
 		var speaker = this.speakerMap.get(identifier);
 		if (null != speaker) {
-			// 执行 hang up
-			speaker.hangUp();
-
 			for (var i = 0, size = speaker.identifiers.length; i < size; ++i) {
 				var id = speaker.identifiers[i];
 				this.speakerMap.remove(id);
 			}
+
+			// 执行 hang up
+			speaker.hangUp();
 
 			var index = -1;
 			if ((index = this.speakers.indexOf(speaker)) >= 0) {

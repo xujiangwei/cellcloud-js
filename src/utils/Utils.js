@@ -72,7 +72,5 @@ var Utils = {
 		}
 
 		return out;
-	},
-
-	
+	}
 };

@@ -135,6 +135,8 @@ var Speaker = Class({
 			this.socket = null;
 		}
 
+		this.state = SpeakerState.HANGUP;
+
 		Logger.d("Speaker", "Hang up call.");
 	},
 
