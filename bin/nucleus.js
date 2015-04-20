@@ -2730,8 +2730,8 @@ var Speaker = Class({
 
 		// tick 时间戳
 		this.tickTime = new Date();
-		// 使用 Socket 的心跳间隔是 60 秒，使用 HTTP 的心跳间隔是 10 秒
-		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 60 * 1000 : 10 * 1000;
+		// 使用 Socket 的心跳间隔是 120 秒，使用 HTTP 的心跳间隔是 10 秒
+		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 120 * 1000 : 10 * 1000;
 	},
 
 	call: function(identifiers) {
@@ -2758,7 +2758,7 @@ var Speaker = Class({
 
 		if (this.wsEnabled) {
 			if (null != this.socket) {
-				if (this.socket.readyState == 1) {
+				if (this.socket.readyState == WebSocket.OPEN) {
 					this.socket.close(1000, "Speaker#close");
 				}
 			}
@@ -2786,7 +2786,7 @@ var Speaker = Class({
 
 		if (null != this.socket) {
 			try {
-				if (this.socket.readyState == 1) {
+				if (this.socket.readyState == WebSocket.OPEN) {
 					this.socket.close(1000, "Speaker#close");
 				}
 			} catch (e) {
@@ -3505,7 +3505,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 1, revision: 0, name: "Journey"},
+	version: {major: 1, minor: 2, revision: 0, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();
