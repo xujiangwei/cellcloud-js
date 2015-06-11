@@ -273,6 +273,14 @@ var TalkService = Class(Service, {
 		return false;
 	},
 
+	getPingPongTime: function(identifier) {
+		var speaker = this.speakerMap.get(identifier);
+		if (null != speaker) {
+			return speaker.pingPong;
+		}
+		return -1;
+	},
+
 	_tickFunction: function() {
 		var self = this;
 

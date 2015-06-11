@@ -76,6 +76,11 @@ var Speaker = Class({
 		this.tickTime = new Date();
 		// 使用 Socket 的心跳间隔是 120 秒，使用 HTTP 的心跳间隔是 10 秒
 		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 120 * 1000 : 10 * 1000;
+
+		// 记录响应时长
+		this.ping = 0;
+		this.pong = 0;
+		this.pingPong = 0;
 	},
 
 	call: function(identifiers) {
@@ -171,6 +176,10 @@ var Speaker = Class({
 				"packet": content
 			};
 			this.socket.send(JSON.stringify(data));
+
+			if (this.ping == 0) {
+				this.ping = Date.now();
+			}
 		}
 		else {
 			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
@@ -232,6 +241,12 @@ var Speaker = Class({
 
 		if (time.getTime() - self.tickTime.getTime() < self.heartbeat) {
 			return;
+		}
+
+		// 重置 ping-pong
+		if (this.ping > 0) {
+			this.ping = 0;
+			this.pong = 0;
 		}
 
 		self.tickTime = time;
@@ -309,6 +324,14 @@ var Speaker = Class({
 
 		var data = JSON.parse(event.data);
 		if (data.tpt == "dialogue") {
+			// 记录 pong
+			if (this.pong == 0) {
+				this.pong = Date.now();
+				if (this.ping > 0) {
+					this.pingPong = this.pong - this.ping;
+				}
+			}
+
 			if (undefined !== data.packet.primitive) {
 				this._doDialogue(data.packet.identifier, data.packet.primitive);
 			}
