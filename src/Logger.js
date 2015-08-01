@@ -50,19 +50,19 @@ else {
 
 var Logger = {
 	d: function(tag, text) {
-		console.log(Logger._printTime() + " [DEBUG] " + tag + " - " + text);
+		window.console.log(Logger._printTime() + " [DEBUG] " + tag + " - " + text);
 	},
 
 	i: function(tag, text) {
-		console.info(Logger._printTime() + " [INFO]  " + tag + " - " + text);
+		window.console.info(Logger._printTime() + " [INFO]  " + tag + " - " + text);
 	},
 
 	w: function(tag, text) {
-		console.warn(Logger._printTime() + " [WARN]  " + tag + " - " + text);
+		window.console.warn(Logger._printTime() + " [WARN]  " + tag + " - " + text);
 	},
 
 	e: function(tag, text) {
-		console.error(Logger._printTime() + " [ERROR] " + tag + " - " + text);
+		window.console.error(Logger._printTime() + " [ERROR] " + tag + " - " + text);
 	},
 
 	_printTime: function() {

@@ -1223,19 +1223,19 @@ else {
 
 var Logger = {
 	d: function(tag, text) {
-		console.log(Logger._printTime() + " [DEBUG] " + tag + " - " + text);
+		window.console.log(Logger._printTime() + " [DEBUG] " + tag + " - " + text);
 	},
 
 	i: function(tag, text) {
-		console.info(Logger._printTime() + " [INFO]  " + tag + " - " + text);
+		window.console.info(Logger._printTime() + " [INFO]  " + tag + " - " + text);
 	},
 
 	w: function(tag, text) {
-		console.warn(Logger._printTime() + " [WARN]  " + tag + " - " + text);
+		window.console.warn(Logger._printTime() + " [WARN]  " + tag + " - " + text);
 	},
 
 	e: function(tag, text) {
-		console.error(Logger._printTime() + " [ERROR] " + tag + " - " + text);
+		window.console.error(Logger._printTime() + " [ERROR] " + tag + " - " + text);
 	},
 
 	_printTime: function() {
@@ -2731,7 +2731,7 @@ var Speaker = Class({
 		// tick 时间戳
 		this.tickTime = new Date();
 		// 使用 Socket 的心跳间隔是 120 秒，使用 HTTP 的心跳间隔是 10 秒
-		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 120 * 1000 : 10 * 1000;
+		this.heartbeat = (this.wsEnabled && undefined !== window.WebSocket) ? 120 * 1000 : 10 * 1000;
 
 		// 记录响应时长
 		this.ping = 0;
@@ -2771,8 +2771,8 @@ var Speaker = Class({
 			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
 		}
 
-		var self = this;
 		if (null == this.socket) {
+			var self = this;
 			this.request = Ajax.newCrossDomain(this.address.getAddress(), this.address.getPort())
 				.uri("/talk/int")
 				.method("GET")
@@ -2881,6 +2881,10 @@ var Speaker = Class({
 						self.tick();
 					}
 				});
+
+			if (self.ping == 0) {
+				self.ping = Date.now();
+			}
 		}
 
 		return true;
@@ -3190,7 +3194,7 @@ var Speaker = Class({
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2014 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3264,8 +3268,8 @@ var TalkService = Class(Service, {
 		this.speakerMap = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
 
-		// 默认 5 秒一次 tick
-		this.tickTime = 5000;
+		// 默认 10 秒一次 tick
+		this.tickTime = 10000;
 	},
 
 	startup: function() {
@@ -3322,17 +3326,17 @@ var TalkService = Class(Service, {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
-		if (null != this.socket && heartbeat < 10000) {
+		if (this.isWebSocketSupported() && heartbeat < 10000) {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
 
 		// 如果心跳小于 5 秒，则缩短 tick 间隔
 		if (heartbeat < 5000) {
-			this.tickTime = 2000;
+			this.tickTime = 5000;
 		}
 		else {
-			this.tickTime = 5000;
+			this.tickTime = 10000;
 		}
 
 		clearTimeout(this.daemonTimer);
@@ -3509,7 +3513,7 @@ TalkService.getInstance = function() {
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2014 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3536,12 +3540,16 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 2, revision: 1, name: "Journey"},
+	version: {major: 1, minor: 2, revision: 6, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();
-		this.talkService = null;
-		this.ts = null;
+
+		this.talkService = {
+			isCalled: function() { return false; }
+		};
+
+		this.ts = this.talkService;
 
 		if (undefined !== window.console) {
 			window.console.log("Cell Cloud "+ this.version.major
@@ -3553,10 +3561,8 @@ var Nucleus = Class(Service, {
 	startup: function() {
 		Logger.i("Nucleus", "Cell Initializing");
 
-		if (null == this.talkService) {
-			this.talkService = new TalkService();
-			this.ts = this.talkService;
-		}
+		this.talkService = new TalkService();
+		this.ts = this.talkService;
 
 		this.talkService.startup();
 		window.service = this.talkService;
@@ -3570,6 +3576,26 @@ var Nucleus = Class(Service, {
 			this.talkService = null;
 			this.ts = null;
 		}
+	},
+
+	activateWSPlugin: function(path, callback) {
+		var swfjs = document.createElement("script");
+
+		swfjs.onload = function() {
+			var wsjs = document.createElement("script");
+			wsjs.onload = function() {
+				if (callback) {
+					setTimeout(callback, 30);
+				}
+			};
+			wsjs.setAttribute("src", path + "/websocket.js");
+			document.body.appendChild(wsjs);
+		};
+
+		swfjs.setAttribute("src", path + "/swfobject.js");
+		document.body.appendChild(swfjs);
+
+		WEB_SOCKET_SWF_LOCATION = path + "/WebSocketMain.swf";
 	}
 });
 

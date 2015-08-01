@@ -75,7 +75,7 @@ var Speaker = Class({
 		// tick 时间戳
 		this.tickTime = new Date();
 		// 使用 Socket 的心跳间隔是 120 秒，使用 HTTP 的心跳间隔是 10 秒
-		this.heartbeat = (socketEnabled !== undefined && socketEnabled) ? 120 * 1000 : 10 * 1000;
+		this.heartbeat = (this.wsEnabled && undefined !== window.WebSocket) ? 120 * 1000 : 10 * 1000;
 
 		// 记录响应时长
 		this.ping = 0;
@@ -115,8 +115,8 @@ var Speaker = Class({
 			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
 		}
 
-		var self = this;
 		if (null == this.socket) {
+			var self = this;
 			this.request = Ajax.newCrossDomain(this.address.getAddress(), this.address.getPort())
 				.uri("/talk/int")
 				.method("GET")
@@ -225,6 +225,10 @@ var Speaker = Class({
 						self.tick();
 					}
 				});
+
+			if (self.ping == 0) {
+				self.ping = Date.now();
+			}
 		}
 
 		return true;

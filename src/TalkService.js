@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2014 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -76,8 +76,8 @@ var TalkService = Class(Service, {
 		this.speakerMap = new HashMap();
 		this.delegateProxy = new _DelegateProxy(this);
 
-		// 默认 5 秒一次 tick
-		this.tickTime = 5000;
+		// 默认 10 秒一次 tick
+		this.tickTime = 10000;
 	},
 
 	startup: function() {
@@ -134,17 +134,17 @@ var TalkService = Class(Service, {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
-		if (null != this.socket && heartbeat < 10000) {
+		if (this.isWebSocketSupported() && heartbeat < 10000) {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
 
 		// 如果心跳小于 5 秒，则缩短 tick 间隔
 		if (heartbeat < 5000) {
-			this.tickTime = 2000;
+			this.tickTime = 5000;
 		}
 		else {
-			this.tickTime = 5000;
+			this.tickTime = 10000;
 		}
 
 		clearTimeout(this.daemonTimer);

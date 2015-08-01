@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2014 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -29,12 +29,16 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 2, revision: 1, name: "Journey"},
+	version: {major: 1, minor: 2, revision: 6, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();
-		this.talkService = null;
-		this.ts = null;
+
+		this.talkService = {
+			isCalled: function() { return false; }
+		};
+
+		this.ts = this.talkService;
 
 		if (undefined !== window.console) {
 			window.console.log("Cell Cloud "+ this.version.major
@@ -46,10 +50,8 @@ var Nucleus = Class(Service, {
 	startup: function() {
 		Logger.i("Nucleus", "Cell Initializing");
 
-		if (null == this.talkService) {
-			this.talkService = new TalkService();
-			this.ts = this.talkService;
-		}
+		this.talkService = new TalkService();
+		this.ts = this.talkService;
 
 		this.talkService.startup();
 		window.service = this.talkService;
@@ -63,6 +65,26 @@ var Nucleus = Class(Service, {
 			this.talkService = null;
 			this.ts = null;
 		}
+	},
+
+	activateWSPlugin: function(path, callback) {
+		var swfjs = document.createElement("script");
+
+		swfjs.onload = function() {
+			var wsjs = document.createElement("script");
+			wsjs.onload = function() {
+				if (callback) {
+					setTimeout(callback, 30);
+				}
+			};
+			wsjs.setAttribute("src", path + "/websocket.js");
+			document.body.appendChild(wsjs);
+		};
+
+		swfjs.setAttribute("src", path + "/swfobject.js");
+		document.body.appendChild(swfjs);
+
+		WEB_SOCKET_SWF_LOCATION = path + "/WebSocketMain.swf";
 	}
 });
 
