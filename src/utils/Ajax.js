@@ -120,7 +120,12 @@ var AjaxRequest = Class({
 		}
 
 		// 发送请求
-		this._xmlhttp.send();
+		if (null == this._content) {
+			this._xmlhttp.send();
+		}
+		else {
+			this._xmlhttp.send(this._content);
+		}
 	}
 });
 
