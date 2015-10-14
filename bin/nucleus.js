@@ -810,11 +810,11 @@ var _cc_ajax_map = new HashMap();
 var _cc_ajax_cb = function(time, response, cookie) {
 	if (undefined !== cookie) {
 		// 新 Cookie
-		console.log("default ajax callback, cookie: " + cookie);
+		Logger.i("Ajax", "default ajax callback, cookie: " + cookie);
 	}
 	else {
 		// 没有新 Cookie
-		//console.log("default ajax callback, no cookie");
+		//Logger.i("Ajax", "default ajax callback, no cookie");
 	}
 
 	var obj = _cc_ajax_map.get(time);
@@ -1004,19 +1004,38 @@ else {
 }
 
 var Logger = {
+	// 是否激活
+	enabled: true,
+
 	d: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.log(Logger._printTime() + " [DEBUG] " + tag + " - " + text);
 	},
 
 	i: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.info(Logger._printTime() + " [INFO]  " + tag + " - " + text);
 	},
 
 	w: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.warn(Logger._printTime() + " [WARN]  " + tag + " - " + text);
 	},
 
 	e: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.error(Logger._printTime() + " [ERROR] " + tag + " - " + text);
 	},
 
@@ -3322,7 +3341,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 3, revision: 0, name: "Journey"},
+	version: {major: 1, minor: 3, revision: 1, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();
@@ -3332,15 +3351,13 @@ var Nucleus = Class(Service, {
 		};
 
 		this.ts = this.talkService;
-
-		if (undefined !== window.console) {
-			window.console.log("Cell Cloud "+ this.version.major
-				+ "." + this.version.minor + "." + this.version.revision
-				+ " (Build JavaScript/Web - " + this.version.name + ")");
-		}
 	},
 
 	startup: function() {
+		Logger.i("Nucleus", "Cell Cloud "+ this.version.major
+				+ "." + this.version.minor + "." + this.version.revision
+				+ " (Build JavaScript/Web - " + this.version.name + ")");
+
 		Logger.i("Nucleus", "Cell Initializing");
 
 		this.talkService = new TalkService();

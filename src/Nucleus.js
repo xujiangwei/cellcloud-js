@@ -29,7 +29,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 3, revision: 0, name: "Journey"},
+	version: {major: 1, minor: 3, revision: 1, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();
@@ -39,15 +39,13 @@ var Nucleus = Class(Service, {
 		};
 
 		this.ts = this.talkService;
-
-		if (undefined !== window.console) {
-			window.console.log("Cell Cloud "+ this.version.major
-				+ "." + this.version.minor + "." + this.version.revision
-				+ " (Build JavaScript/Web - " + this.version.name + ")");
-		}
 	},
 
 	startup: function() {
+		Logger.i("Nucleus", "Cell Cloud "+ this.version.major
+				+ "." + this.version.minor + "." + this.version.revision
+				+ " (Build JavaScript/Web - " + this.version.name + ")");
+
 		Logger.i("Nucleus", "Cell Initializing");
 
 		this.talkService = new TalkService();

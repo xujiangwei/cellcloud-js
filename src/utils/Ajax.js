@@ -267,11 +267,11 @@ var _cc_ajax_map = new HashMap();
 var _cc_ajax_cb = function(time, response, cookie) {
 	if (undefined !== cookie) {
 		// 新 Cookie
-		console.log("default ajax callback, cookie: " + cookie);
+		Logger.i("Ajax", "default ajax callback, cookie: " + cookie);
 	}
 	else {
 		// 没有新 Cookie
-		//console.log("default ajax callback, no cookie");
+		//Logger.i("Ajax", "default ajax callback, no cookie");
 	}
 
 	var obj = _cc_ajax_map.get(time);

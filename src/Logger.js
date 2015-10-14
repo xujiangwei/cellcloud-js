@@ -49,19 +49,38 @@ else {
 }
 
 var Logger = {
+	// 是否激活
+	enabled: true,
+
 	d: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.log(Logger._printTime() + " [DEBUG] " + tag + " - " + text);
 	},
 
 	i: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.info(Logger._printTime() + " [INFO]  " + tag + " - " + text);
 	},
 
 	w: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.warn(Logger._printTime() + " [WARN]  " + tag + " - " + text);
 	},
 
 	e: function(tag, text) {
+		if (!Logger.enabled) {
+			return;
+		}
+
 		window.console.error(Logger._printTime() + " [ERROR] " + tag + " - " + text);
 	},
 
