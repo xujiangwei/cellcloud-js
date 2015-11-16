@@ -35,10 +35,7 @@ var SpeakerState = {
 	CALLING: 2,
 
 	/** 已经请求服务。 */
-	CALLED:  3,
-
-	/** 挂起状态。 */
-	SUSPENDED: 4
+	CALLED:  3
 };
 
 

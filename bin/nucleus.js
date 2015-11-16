@@ -2492,10 +2492,7 @@ var SpeakerState = {
 	CALLING: 2,
 
 	/** 已经请求服务。 */
-	CALLED:  3,
-
-	/** 挂起状态。 */
-	SUSPENDED: 4
+	CALLED:  3
 };
 
 
@@ -3127,13 +3124,13 @@ var TalkService = Class(Service, {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
-		if (this.isWebSocketSupported() && heartbeat < 10000) {
-			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
-			return false;
-		}
+//		if (this.isWebSocketSupported() && heartbeat < 10000) {
+//			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
+//			return false;
+//		}
 
 		// 如果心跳小于 5 秒，则缩短 tick 间隔
-		if (heartbeat < 5000) {
+		if (heartbeat <= 5000) {
 			this.tickTime = 5000;
 		}
 		else {
@@ -3149,7 +3146,14 @@ var TalkService = Class(Service, {
 			speaker.heartbeat = heartbeat;
 		}
 		else {
-			Logger.e("TalkService", "Reset '"+ identifier +"' heartbeat Failed");
+			Logger.e("TalkService", "Reset '"+ identifier +"' heartbeat Failed. Retrying after 5 seconds ...");
+			var self = this;
+			setTimeout(function() {
+				var speaker = self.speakerMap.get(identifier);
+				if (null != speaker) {
+					speaker.heartbeat = heartbeat;
+				}
+			}, 5000);
 		}
 
 		Logger.i("TalkService", "Reset '" + identifier + "' heartbeat period is " + heartbeat + " ms");
@@ -3341,7 +3345,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 3, revision: 1, name: "Journey"},
+	version: {major: 1, minor: 3, revision: 3, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();

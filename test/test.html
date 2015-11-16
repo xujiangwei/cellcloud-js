@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Cell Cloud Test Case</title>
+<link rel="stylesheet" href="../lib/jquery-ui-1.10.4/themes/start/jquery-ui.min.css">
+<link rel="stylesheet" href="../lib/jquery-ui-1.10.4/themes/start/jquery.ui.theme.css">
+<link rel="stylesheet" href="../bin/console-min.css">
+<style>
+body {
+  font-family: Verdana, Geneva, sans-serif;
+}
+label {
+  display: inline-block;
+  width: 120px;
+  text-align: right;
+  vertical-align: top;
+}
+input {
+  width: 300px;
+}
+textarea {
+  width: 460px;
+}
+</style>
+
+<script type="text/javascript" src="../lib/jquery-2.1.0.min.js"></script>
+<script type="text/javascript" src="../lib/jquery-ui-1.10.4/js/jquery-ui-1.10.4.min.js"></script>
+<script type="text/javascript" src="../bin/nucleus-min.js"></script>
+<script type="text/javascript" src="../bin/console-min.js"></script>
+<!--
+<script type="text/javascript" src="../src/extras/Console.js"></script>
+<link href="../src/extras/Console.css" rel="stylesheet">
+-->
+
+<script type="text/javascript">
+var CaseListener = Class({
+	ctor: function() {
+	},
+
+	dialogue: function(identifier, primitive) {
+		Logger.d("*** dialogue: ", identifier);
+
+		if (primitive.isDialectal()) {
+			var dialect = primitive.getDialect();
+			var str = ["Action: ", dialect.getAction(), "\n"
+				, "'words' : ", dialect.getParam("words"), "\n"
+				, "'timestamp' : ", dialect.getParam("timestamp")];
+			dialect.act(function() {
+				$('#tf_prim').val(str.join(''));
+			});
+		}
+		else {
+			var o = {};
+			PrimitiveSerializer.write(o, primitive);
+			var str = JSON.stringify(o);
+			$('#tf_prim').val(str);
+		}
+	},
+
+	contacted: function(identifier, tag) {
+		console.log("*** contacted: " + identifier);
+
+		$('#btn_action').button("option", "disabled", false);
+		$('#btn_talk').button("option", "disabled", false);
+		$('#btn_call').button("option", "disabled", true);
+	},
+
+	quitted: function(identifier, tag) {
+		console.log("*** quitted: " + identifier);
+	},
+
+	failed: function(tag, failure) {
+		console.log("*** failed: " + identifier + " - " + failure.getDescription());
+	}
+});
+
+$(document).ready(function(e) {
+
+	var console = new Console();
+	console.start();
+	console.mark(true);
+
+    if (window.nucleus.startup()) {
+		console.log('Started nucleus');
+		nucleus.talkService.addListener(new CaseListener());
+	}
+
+	$('#btn_call').button().click(function(e) {
+        var address = new InetAddress("127.0.0.1", 7070);
+		nucleus.talkService.call("Dummy", address);
+    });
+
+	$('#btn_talk').button().click(function(e) {
+        var p = new Primitive();
+		p.commit(new SubjectStuff("This is a test."));
+		p.commit(new PredicateStuff((new Date()).getTime(), LiteralBase.LONG));
+		nucleus.talkService.talk("Dummy", p);
+    });
+
+	var autoTimer = 0;
+	$('#btn_action').button().click(function(e) {
+		var d = DialectEnumerator.getInstance().createDialect(ActionDialect.DIALECT_NAME);
+		d.setAction("dummy");
+		d.appendParam("words", "This is a Action Dialect");
+		d.appendParam("timestamp", (new Date()).getTime());
+		nucleus.talkService.talk("Dummy", d);
+	});
+
+	$('#tf_prim').val('');
+	$('#btn_call').button("option", "disabled", false);
+	$('#btn_talk').button("option", "disabled", true);
+	$('#btn_action').button("option", "disabled", true);
+});
+</script>
+</head>
+
+<body>
+<h1>Cell Cloud Test Page</h1>
+<form>
+  <p>
+    <label for="tf_cellet">Cellet: </label>
+    <input type="text" class="ui-widget" id="tf_cellet" placeholder="" value="Dummy" />
+  </p>
+  <p>
+    <label for="tf_prim">Primitive: </label>
+    <textarea rows="8" readonly class="ui-widget" id="tf_prim" placeholder=""></textarea>
+  </p>
+  <p>
+    <button id="btn_call">Call</button>
+    <button id="btn_talk">Talk</button>
+    <button id="btn_action">Action</button>
+  </p>
+</form>
+</body>
+</html>

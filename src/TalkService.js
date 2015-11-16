@@ -134,13 +134,13 @@ var TalkService = Class(Service, {
 			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
 			return false;
 		}
-		if (this.isWebSocketSupported() && heartbeat < 10000) {
-			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
-			return false;
-		}
+//		if (this.isWebSocketSupported() && heartbeat < 10000) {
+//			Logger.w("TalkService", "Reset '"+ identifier +"' heartbeat Failed.");
+//			return false;
+//		}
 
 		// 如果心跳小于 5 秒，则缩短 tick 间隔
-		if (heartbeat < 5000) {
+		if (heartbeat <= 5000) {
 			this.tickTime = 5000;
 		}
 		else {
@@ -156,7 +156,14 @@ var TalkService = Class(Service, {
 			speaker.heartbeat = heartbeat;
 		}
 		else {
-			Logger.e("TalkService", "Reset '"+ identifier +"' heartbeat Failed");
+			Logger.e("TalkService", "Reset '"+ identifier +"' heartbeat Failed. Retrying after 5 seconds ...");
+			var self = this;
+			setTimeout(function() {
+				var speaker = self.speakerMap.get(identifier);
+				if (null != speaker) {
+					speaker.heartbeat = heartbeat;
+				}
+			}, 5000);
 		}
 
 		Logger.i("TalkService", "Reset '" + identifier + "' heartbeat period is " + heartbeat + " ms");
