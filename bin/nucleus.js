@@ -2565,8 +2565,8 @@ var Speaker = Class({
 					this.socket.close(1000, "Speaker#close");
 				}
 			}
-			// WebSocket 的端口号，是 HTTP 服务端口号 +1
-			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
+			// WebSocket 的端口号是 HTTP 服务端口号 +1， WebSocket Secure 端口号是 HTTP 服务端口号 +7
+			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1, this.address.getPort() + 7);
 		}
 
 		if (null == this.socket) {
@@ -2746,13 +2746,19 @@ var Speaker = Class({
 		}
 	},
 
-	_createSocket: function(address, port) {
+	_createSocket: function(address, port, wssPort) {
 		if (undefined === window.WebSocket) {
 			return null;
 		}
 
 		var self = this;
-		var socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
+		var socket = null;
+		if (window.location.protocol.toString().indexOf("https") >= 0) {
+			socket = new WebSocket("wss://" + address + ":" + wssPort + "/ws", "cell");
+		}
+		else {
+			socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
+		}
 		socket.onopen = function(event) { self._onSocketOpen(event); };
 		socket.onclose = function(event) { self._onSocketClose(event); };
 		socket.onmessage = function(event) { self._onSocketMessage(event); };
@@ -3181,6 +3187,10 @@ var TalkService = Class(Service, {
 			this.speakerMap.put(identifier, speaker);
 		}
 
+		if (!socketEnabled) {
+			this.resetHeartbeat(identifiers[0], 5000);
+		}
+
 		return speaker.call(identifiers);
 	},
 
@@ -3345,7 +3355,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 3, revision: 3, name: "Journey"},
+	version: {major: 1, minor: 3, revision: 5, name: "Journey"},
 
 	ctor: function() {
 		this.tag = UUID.v4();

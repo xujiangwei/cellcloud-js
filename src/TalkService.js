@@ -191,6 +191,10 @@ var TalkService = Class(Service, {
 			this.speakerMap.put(identifier, speaker);
 		}
 
+		if (!socketEnabled) {
+			this.resetHeartbeat(identifiers[0], 5000);
+		}
+
 		return speaker.call(identifiers);
 	},
 
