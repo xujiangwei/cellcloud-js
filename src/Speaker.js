@@ -296,7 +296,7 @@ var Speaker = Class({
 
 		var self = this;
 		var socket = null;
-		if (window.location.protocol.toString().indexOf("https") >= 0) {
+		if (window.location.protocol.toLowerCase().indexOf("https") >= 0) {
 			socket = new WebSocket("wss://" + address + ":" + wssPort + "/ws", "cell");
 		}
 		else {
