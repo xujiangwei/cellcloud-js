@@ -497,7 +497,51 @@ THE SOFTWARE.
  * @author Xu Jiangwei
  */
 var Utils = {
-	/** 简单解密。
+	/** 简单加密操作。密钥长度为 8 位。
+	 */
+	simpleEncrypt: function(aPlaintext, aKey) {
+		var plaintext = [];
+		for (var i = 0; i < aPlaintext.length; ++i) {
+			plaintext.push(aPlaintext.charCodeAt(i) - 256);
+		}
+		var key = [];
+		for (var i = 0; i < aKey.length; ++i) {
+			key.push(aKey.charCodeAt(i) - 256);
+		}
+
+		if (key.length != 8)
+			return null;
+
+		// 运算密钥
+		var keyCode = 11 + key[0];
+		keyCode -= key[1];
+		keyCode += key[2];
+		keyCode -= key[3];
+		keyCode += key[4];
+		keyCode -= key[5];
+		keyCode += key[6];
+		keyCode -= key[7];
+
+		// 评价
+		var cc = (keyCode % 8);
+		var parity = (((keyCode % 2) == 0) ? 2 : 1);
+
+		var length = plaintext.length;
+		var out = new Array();
+
+		for (var i = 0; i < length; ++i) {
+			var c = (plaintext[i] ^ parity);
+			var v = (c ^ cc);
+			if (v < 0) {
+				v += 256;
+			}
+			out[i] = v;
+		}
+
+		return out;
+	},
+
+	/** 简单解密操作。密钥长度为 8 位。
 	 */
 	simpleDecrypt: function(aCiphertext, aKey) {
 		var ciphertext = [];
@@ -688,6 +732,8 @@ var AjaxCrossDomainRequest = Class({
 		this._error = null;
 		this._errorContext = null;
 
+		this._protocol = (window.location.protocol.toLowerCase().indexOf("https") >= 0) ? "https://" : "http://";
+
 		// 请求数据是否完成
 		this._completed = false;
 
@@ -749,7 +795,7 @@ var AjaxCrossDomainRequest = Class({
 			param.push("&_cookie=", escape(this._cookie));
 		}
 		// URL
-		var src = "http://" + this._address + ":" + this._port + "/cccd.js" + param.join("");
+		var src = this._protocol + this._address + ":" + this._port + "/cccd.js" + param.join("");
 
 		var self = this;
 
@@ -2459,7 +2505,7 @@ var SpeakerDelegate = Class({
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2016 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -2522,6 +2568,11 @@ var Speaker = Class({
 		this.request = null;
 		// Cookie
 		this.cookie = null;
+
+		// 是否采用安全连接
+		this.secure = (window.location.protocol.toLowerCase().indexOf("https") >= 0);
+		// 密钥
+		this.secretKey = null;
 
 		// 远程服务器 Tag
 		this.remoteTag = null;
@@ -2753,7 +2804,7 @@ var Speaker = Class({
 
 		var self = this;
 		var socket = null;
-		if (window.location.protocol.toLowerCase().indexOf("https") >= 0) {
+		if (self.secure) {
 			socket = new WebSocket("wss://" + address + ":" + wssPort + "/ws", "cell");
 		}
 		else {
@@ -2808,7 +2859,7 @@ var Speaker = Class({
 			}
 		}
 		else if (data.tpt == "request") {
-			this._doReply(data.packet);
+			this._doRequest(data.packet);
 		}
 		else if (data.tpt == "check") {
 			this.remoteTag = data.packet.tag;
@@ -2831,6 +2882,9 @@ var Speaker = Class({
 		var ciphertextBase64 = data.ciphertext;	// string
 		var key = data.key;		// string
 		var ciphertext = Base64.decode(ciphertextBase64);	// string - bytes
+
+		// 记录密钥
+		this.secretKey = key;
 
 		// 请求 Check
 		this._requestCheck(ciphertext, key);
@@ -2897,13 +2951,13 @@ var Speaker = Class({
 					.content(content)
 					.error(self._fireFailed, self)
 					.send(function(data) {
-						self._doReply(data);
+						self._doRequest(data);
 					});
 			}
 		}
 	},
 
-	_doReply: function(data) {
+	_doRequest: function(data) {
 		if (undefined !== data.error) {
 			// 创建失败
 			var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
@@ -2922,7 +2976,7 @@ var Speaker = Class({
 			}
 
 			Logger.i("Speaker", "Cellet '" + data.identifier + "' has called at " +
-					this.address.getAddress() + ":" + (this.address.getPort() + ((null != this.socket) ? 1 : 0)));
+					this.address.getAddress() + ":" + (this.address.getPort() + ((null != this.socket) ? (this.secure ? 7 : 1) : 0)));
 
 			// 更新状态
 			this.state = SpeakerState.CALLED;
@@ -3328,7 +3382,7 @@ TalkService.getInstance = function() {
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2016 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3355,7 +3409,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: {major: 1, minor: 3, revision: 5, name: "Journey"},
+	version: { major: 1, minor: 3, revision: 6, name: "Journey" },
 
 	ctor: function() {
 		this.tag = UUID.v4();

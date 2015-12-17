@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2016 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -65,6 +65,11 @@ var Speaker = Class({
 		this.request = null;
 		// Cookie
 		this.cookie = null;
+
+		// 是否采用安全连接
+		this.secure = (window.location.protocol.toLowerCase().indexOf("https") >= 0);
+		// 密钥
+		this.secretKey = null;
 
 		// 远程服务器 Tag
 		this.remoteTag = null;
@@ -296,7 +301,7 @@ var Speaker = Class({
 
 		var self = this;
 		var socket = null;
-		if (window.location.protocol.toLowerCase().indexOf("https") >= 0) {
+		if (self.secure) {
 			socket = new WebSocket("wss://" + address + ":" + wssPort + "/ws", "cell");
 		}
 		else {
@@ -351,7 +356,7 @@ var Speaker = Class({
 			}
 		}
 		else if (data.tpt == "request") {
-			this._doReply(data.packet);
+			this._doRequest(data.packet);
 		}
 		else if (data.tpt == "check") {
 			this.remoteTag = data.packet.tag;
@@ -374,6 +379,9 @@ var Speaker = Class({
 		var ciphertextBase64 = data.ciphertext;	// string
 		var key = data.key;		// string
 		var ciphertext = Base64.decode(ciphertextBase64);	// string - bytes
+
+		// 记录密钥
+		this.secretKey = key;
 
 		// 请求 Check
 		this._requestCheck(ciphertext, key);
@@ -440,13 +448,13 @@ var Speaker = Class({
 					.content(content)
 					.error(self._fireFailed, self)
 					.send(function(data) {
-						self._doReply(data);
+						self._doRequest(data);
 					});
 			}
 		}
 	},
 
-	_doReply: function(data) {
+	_doRequest: function(data) {
 		if (undefined !== data.error) {
 			// 创建失败
 			var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
@@ -465,7 +473,7 @@ var Speaker = Class({
 			}
 
 			Logger.i("Speaker", "Cellet '" + data.identifier + "' has called at " +
-					this.address.getAddress() + ":" + (this.address.getPort() + ((null != this.socket) ? 1 : 0)));
+					this.address.getAddress() + ":" + (this.address.getPort() + ((null != this.socket) ? (this.secure ? 7 : 1) : 0)));
 
 			// 更新状态
 			this.state = SpeakerState.CALLED;

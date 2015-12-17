@@ -30,7 +30,51 @@ THE SOFTWARE.
  * @author Xu Jiangwei
  */
 var Utils = {
-	/** 简单解密。
+	/** 简单加密操作。密钥长度为 8 位。
+	 */
+	simpleEncrypt: function(aPlaintext, aKey) {
+		var plaintext = [];
+		for (var i = 0; i < aPlaintext.length; ++i) {
+			plaintext.push(aPlaintext.charCodeAt(i) - 256);
+		}
+		var key = [];
+		for (var i = 0; i < aKey.length; ++i) {
+			key.push(aKey.charCodeAt(i) - 256);
+		}
+
+		if (key.length != 8)
+			return null;
+
+		// 运算密钥
+		var keyCode = 11 + key[0];
+		keyCode -= key[1];
+		keyCode += key[2];
+		keyCode -= key[3];
+		keyCode += key[4];
+		keyCode -= key[5];
+		keyCode += key[6];
+		keyCode -= key[7];
+
+		// 评价
+		var cc = (keyCode % 8);
+		var parity = (((keyCode % 2) == 0) ? 2 : 1);
+
+		var length = plaintext.length;
+		var out = new Array();
+
+		for (var i = 0; i < length; ++i) {
+			var c = (plaintext[i] ^ parity);
+			var v = (c ^ cc);
+			if (v < 0) {
+				v += 256;
+			}
+			out[i] = v;
+		}
+
+		return out;
+	},
+
+	/** 简单解密操作。密钥长度为 8 位。
 	 */
 	simpleDecrypt: function(aCiphertext, aKey) {
 		var ciphertext = [];

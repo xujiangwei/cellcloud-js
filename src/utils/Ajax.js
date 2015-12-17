@@ -145,6 +145,8 @@ var AjaxCrossDomainRequest = Class({
 		this._error = null;
 		this._errorContext = null;
 
+		this._protocol = (window.location.protocol.toLowerCase().indexOf("https") >= 0) ? "https://" : "http://";
+
 		// 请求数据是否完成
 		this._completed = false;
 
@@ -206,7 +208,7 @@ var AjaxCrossDomainRequest = Class({
 			param.push("&_cookie=", escape(this._cookie));
 		}
 		// URL
-		var src = "http://" + this._address + ":" + this._port + "/cccd.js" + param.join("");
+		var src = this._protocol + this._address + ":" + this._port + "/cccd.js" + param.join("");
 
 		var self = this;
 
