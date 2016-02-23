@@ -45,8 +45,7 @@ var SpeakerState = {
  * @author Jiangwei Xu
  */
 var Speaker = Class({
-	ctor: function(tag, address, delegate, socketEnabled) {
-		this.tag = tag;
+	ctor: function(address, delegate, socketEnabled) {
 		this.address = address;
 		this.delegate = delegate;
 		this.identifiers = [];
@@ -147,6 +146,7 @@ var Speaker = Class({
 		}
 
 		this.state = SpeakerState.HANGUP;
+		this.remoteTag = null;
 
 		Logger.d("Speaker", "Hang up call.");
 	},
@@ -167,7 +167,7 @@ var Speaker = Class({
 		// 将原语写入 JSON 对象
 		PrimitiveSerializer.write(primJSON, primitive);
 		var content = {
-			"tag": self.tag,
+			"tag": window.nucleus.tag,
 			"identifier": identifier,
 			"primitive": primJSON
 		};
@@ -302,7 +302,7 @@ var Speaker = Class({
 		var self = this;
 		var socket = null;
 		if (self.secure) {
-			socket = new WebSocket("wss://" + address + ":" + wssPort + "/ws", "cell");
+			socket = new WebSocket("wss://" + address + ":" + wssPort + "/wss", "cell");
 		}
 		else {
 			socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
@@ -330,6 +330,7 @@ var Speaker = Class({
 		}
 
 		this.state = SpeakerState.HANGUP;
+		this.remoteTag = null;
 	},
 	_onSocketMessage: function(event) {
 		//Logger.d('Speaker', '_onSocketMessage: ' + event.data);
@@ -397,8 +398,8 @@ var Speaker = Class({
 		}
 		text = text.join('');
 
-		var tag = this.tag;
-		var content = {"plaintext": text, "tag": tag};
+		var tag = window.nucleus.tag;
+		var content = { "plaintext": text, "tag": tag };
 
 		if (null != this.socket) {
 			var data = {
@@ -424,7 +425,7 @@ var Speaker = Class({
 	},
 
 	_requestCellets: function() {
-		var tag = this.tag.toString();
+		var tag = window.nucleus.tag.toString();
 		for (var i = 0; i < this.identifiers.length; ++i) {
 			var identifier = this.identifiers[i];
 			var content = {
@@ -456,7 +457,7 @@ var Speaker = Class({
 
 	_doRequest: function(data) {
 		if (undefined !== data.error) {
-			// 创建失败
+			// 回调失败
 			var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
 			failure.setSourceDescription("Can not find cellet '" + data.identifier + "'");
 			failure.setSourceCelletIdentifiers(this.identifiers);
@@ -498,7 +499,12 @@ var Speaker = Class({
 		this.delegate.onDialogue(this, identifier, primitive);
 	},
 	_fireContacted: function(identifier) {
-		this.delegate.onContacted(this, identifier);
+		var self = this;
+		var celletIdentifier = identifier.toString();
+		var t = setTimeout(function() {
+			clearTimeout(t);
+			self.delegate.onContacted(self, celletIdentifier);
+		}, 60);
 	},
 	_fireQuitted: function(identifier) {
 		this.delegate.onQuitted(this, identifier);

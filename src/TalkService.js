@@ -2,7 +2,7 @@
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2016 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -183,7 +183,7 @@ var TalkService = Class(Service, {
 		}
 
 		// 创建新的 Speaker
-		var speaker = new Speaker(window.nucleus.tag, address, this.delegateProxy, socketEnabled);
+		var speaker = new Speaker(address, this.delegateProxy, socketEnabled);
 		this.speakers.push(speaker);
 
 		for (var i = 0; i < identifiers.length; ++i) {
@@ -219,6 +219,8 @@ var TalkService = Class(Service, {
 		this.recallTimer = setTimeout(function() {
 			clearTimeout(self.recallTimer);
 			self.recallTimer = 0;
+
+			window.nucleus._resetTag();
 
 			for (var i = 0; i < self.speakers.length; ++i) {
 				var speaker = self.speakers[i];

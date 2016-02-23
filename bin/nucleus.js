@@ -2548,8 +2548,7 @@ var SpeakerState = {
  * @author Jiangwei Xu
  */
 var Speaker = Class({
-	ctor: function(tag, address, delegate, socketEnabled) {
-		this.tag = tag;
+	ctor: function(address, delegate, socketEnabled) {
 		this.address = address;
 		this.delegate = delegate;
 		this.identifiers = [];
@@ -2650,6 +2649,7 @@ var Speaker = Class({
 		}
 
 		this.state = SpeakerState.HANGUP;
+		this.remoteTag = null;
 
 		Logger.d("Speaker", "Hang up call.");
 	},
@@ -2670,7 +2670,7 @@ var Speaker = Class({
 		// 将原语写入 JSON 对象
 		PrimitiveSerializer.write(primJSON, primitive);
 		var content = {
-			"tag": self.tag,
+			"tag": window.nucleus.tag,
 			"identifier": identifier,
 			"primitive": primJSON
 		};
@@ -2805,7 +2805,7 @@ var Speaker = Class({
 		var self = this;
 		var socket = null;
 		if (self.secure) {
-			socket = new WebSocket("wss://" + address + ":" + wssPort + "/ws", "cell");
+			socket = new WebSocket("wss://" + address + ":" + wssPort + "/wss", "cell");
 		}
 		else {
 			socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
@@ -2833,6 +2833,7 @@ var Speaker = Class({
 		}
 
 		this.state = SpeakerState.HANGUP;
+		this.remoteTag = null;
 	},
 	_onSocketMessage: function(event) {
 		//Logger.d('Speaker', '_onSocketMessage: ' + event.data);
@@ -2900,8 +2901,8 @@ var Speaker = Class({
 		}
 		text = text.join('');
 
-		var tag = this.tag;
-		var content = {"plaintext": text, "tag": tag};
+		var tag = window.nucleus.tag;
+		var content = { "plaintext": text, "tag": tag };
 
 		if (null != this.socket) {
 			var data = {
@@ -2927,7 +2928,7 @@ var Speaker = Class({
 	},
 
 	_requestCellets: function() {
-		var tag = this.tag.toString();
+		var tag = window.nucleus.tag.toString();
 		for (var i = 0; i < this.identifiers.length; ++i) {
 			var identifier = this.identifiers[i];
 			var content = {
@@ -2959,7 +2960,7 @@ var Speaker = Class({
 
 	_doRequest: function(data) {
 		if (undefined !== data.error) {
-			// 创建失败
+			// 回调失败
 			var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
 			failure.setSourceDescription("Can not find cellet '" + data.identifier + "'");
 			failure.setSourceCelletIdentifiers(this.identifiers);
@@ -3001,7 +3002,12 @@ var Speaker = Class({
 		this.delegate.onDialogue(this, identifier, primitive);
 	},
 	_fireContacted: function(identifier) {
-		this.delegate.onContacted(this, identifier);
+		var self = this;
+		var celletIdentifier = identifier.toString();
+		var t = setTimeout(function() {
+			clearTimeout(t);
+			self.delegate.onContacted(self, celletIdentifier);
+		}, 60);
 	},
 	_fireQuitted: function(identifier) {
 		this.delegate.onQuitted(this, identifier);
@@ -3052,7 +3058,7 @@ var Speaker = Class({
 -----------------------------------------------------------------------------
 This source file is part of Cell Cloud.
 
-Copyright (c) 2009-2015 Cell Cloud Team (www.cellcloud.net)
+Copyright (c) 2009-2016 Cell Cloud Team (www.cellcloud.net)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3233,7 +3239,7 @@ var TalkService = Class(Service, {
 		}
 
 		// 创建新的 Speaker
-		var speaker = new Speaker(window.nucleus.tag, address, this.delegateProxy, socketEnabled);
+		var speaker = new Speaker(address, this.delegateProxy, socketEnabled);
 		this.speakers.push(speaker);
 
 		for (var i = 0; i < identifiers.length; ++i) {
@@ -3269,6 +3275,8 @@ var TalkService = Class(Service, {
 		this.recallTimer = setTimeout(function() {
 			clearTimeout(self.recallTimer);
 			self.recallTimer = 0;
+
+			window.nucleus._resetTag();
 
 			for (var i = 0; i < self.speakers.length; ++i) {
 				var speaker = self.speakers[i];
@@ -3409,7 +3417,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: { major: 1, minor: 3, revision: 6, name: "Journey" },
+	version: { major: 1, minor: 3, revision: 8, name: "Journey" },
 
 	ctor: function() {
 		this.tag = UUID.v4();
@@ -3419,6 +3427,10 @@ var Nucleus = Class(Service, {
 		};
 
 		this.ts = this.talkService;
+	},
+
+	_resetTag: function() {
+		this.tag = UUID.v4();
 	},
 
 	startup: function() {
