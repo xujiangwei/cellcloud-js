@@ -204,7 +204,8 @@ var TalkService = Class(Service, {
 		}
 
 		if (this.recallTimer > 0) {
-			return;
+			clearTimeout(this.recallTimer);
+			this.recallTimer = 0;
 		}
 
 		for (var i = 0; i < this.speakers.length; ++i) {

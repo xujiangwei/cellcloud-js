@@ -112,8 +112,8 @@ var Speaker = Class({
 					this.socket.close(1000, "Speaker#close");
 				}
 			}
-			// WebSocket 的端口号是 HTTP 服务端口号 +1， WebSocket Secure 端口号是 HTTP 服务端口号 +7
-			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1, this.address.getPort() + 7);
+			// WebSocket 的端口号是 HTTP 服务端口号 +1， WebSocket Secure 端口号是 HTTPS 服务端口号 +1
+			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
 		}
 
 		if (null == this.socket) {
@@ -167,7 +167,7 @@ var Speaker = Class({
 		// 将原语写入 JSON 对象
 		PrimitiveSerializer.write(primJSON, primitive);
 		var content = {
-			"tag": window.nucleus.tag,
+			"tag": window.nucleus.tag.toString(),
 			"identifier": identifier,
 			"primitive": primJSON
 		};
@@ -294,7 +294,7 @@ var Speaker = Class({
 		}
 	},
 
-	_createSocket: function(address, port, wssPort) {
+	_createSocket: function(address, port) {
 		if (undefined === window.WebSocket) {
 			return null;
 		}
@@ -302,7 +302,7 @@ var Speaker = Class({
 		var self = this;
 		var socket = null;
 		if (self.secure) {
-			socket = new WebSocket("wss://" + address + ":" + wssPort + "/wss", "cell");
+			socket = new WebSocket("wss://" + address + ":" + port + "/wss", "cell");
 		}
 		else {
 			socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");

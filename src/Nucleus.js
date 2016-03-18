@@ -29,10 +29,10 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: { major: 1, minor: 3, revision: 8, name: "Journey" },
+	version: { major: 1, minor: 3, revision: 10, name: "Journey" },
 
 	ctor: function() {
-		this.tag = UUID.v4();
+		this.tag = UUID.v4().toString();
 
 		this.talkService = {
 			isCalled: function() { return false; }
@@ -42,7 +42,7 @@ var Nucleus = Class(Service, {
 	},
 
 	_resetTag: function() {
-		this.tag = UUID.v4();
+		this.tag = UUID.v4().toString();
 	},
 
 	startup: function() {
