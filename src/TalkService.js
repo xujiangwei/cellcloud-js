@@ -198,6 +198,51 @@ var TalkService = Class(Service, {
 		return speaker.call(identifiers);
 	},
 
+	tryRecall: function(callback) {
+		if (this.speakers.length == 0) {
+			return false;
+		}
+
+		// 判断socket连接是否真正的关闭了, 如果未真正关闭, 无须重连
+        for (var i = 0; i < this.speakers.length; ++i) {
+            var speaker = this.speakers[i];
+            if (speaker.state != SpeakerState.HANGUP) {
+                // 未真正关闭, 通知应用层激活
+                if (undefined !== callback) {
+                    callback.call(null, false);
+                }
+                return true;
+            }
+        }
+
+		if (this.recallTimer > 0) {
+			clearTimeout(this.recallTimer);
+			this.recallTimer = 0;
+		}
+
+		var self = this;
+		this.recallTimer = setTimeout(function() {
+			clearTimeout(self.recallTimer);
+			self.recallTimer = 0;
+
+			window.nucleus._resetTag();
+
+			for (var i = 0; i < self.speakers.length; ++i) {
+				var speaker = self.speakers[i];
+				if (speaker.state != SpeakerState.CALLED) {
+					// call without ids
+					speaker.call(null);
+				}
+			}
+
+			if (undefined !== callback) {
+				callback.call(null, true);
+			}
+		}, 5000);
+
+		return true;
+	},
+
 	recall: function() {
 		if (this.speakers.length == 0) {
 			return false;
