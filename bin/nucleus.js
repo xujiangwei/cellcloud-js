@@ -683,10 +683,20 @@ var AjaxRequest = Class({
 		// 打开 AJAX 请求
 		this._xmlhttp.open(this._method, this._url, true);
 
-		if (typeof this._content == "string") {
+		var params;
+		//如果content是JSON对象, 即把content转换成表单类型以POST传输
+		if (null != this._content && typeof this._content == "object") {
+			for(var item in this._content){
+				if(params == null){
+					params = item + '=' + encodeURIComponent(this._content[item]);
+				}else{
+					params += '&' + item + '=' + encodeURIComponent(this._content[item]);
+				}
+			}
 			this._xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
 		}
-		else {
+		else{
+			params = this._content;
 			this._xmlhttp.setRequestHeader("Content-Type", "application/json");
 		}
 
@@ -712,11 +722,11 @@ var AjaxRequest = Class({
 		}
 
 		// 发送请求
-		if (null == this._content) {
+		if (null == params) {
 			this._xmlhttp.send();
 		}
 		else {
-			this._xmlhttp.send(this._content);
+			this._xmlhttp.send(params);
 		}
 	}
 });

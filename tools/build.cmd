@@ -16,14 +16,10 @@ del bin\*.js
 mkdir bin
 
 rem megre files
-for /f %%i in (build\filelist) do type %%i >> bin\nucleus.js
+for /f %%i in (tools\filelist_win) do type %%i >> bin\nucleus.js
 
 rem compress --nomunge
-java -jar build\yuicompressor-2.4.8.jar -v --type js --charset utf-8 -o bin\nucleus-min.js bin\nucleus.js
-
-rem console
-java -jar build\yuicompressor-2.4.8.jar -v --type js --charset utf-8 -o bin\console-min.js src\extras\Console.js
-java -jar build\yuicompressor-2.4.8.jar -v --type css --charset utf-8 -o bin\console-min.css src\extras\Console.css
+java -jar tools\yuicompressor-2.4.8.jar -v --type js --charset utf-8 -o bin\nucleus-min.js bin\nucleus.js
 
 echo.
 echo ... End
