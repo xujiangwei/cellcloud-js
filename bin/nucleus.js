@@ -683,6 +683,13 @@ var AjaxRequest = Class({
 		// 打开 AJAX 请求
 		this._xmlhttp.open(this._method, this._url, true);
 
+		if (typeof this._content == "string") {
+			this._xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+		}
+		else {
+			this._xmlhttp.setRequestHeader("Content-Type", "application/json");
+		}
+
 		// 处理请求头数据
 		if (null != this._headers) {
 			var keySet = this._headers.keySet();
@@ -693,8 +700,6 @@ var AjaxRequest = Class({
 				this._xmlhttp.setRequestHeader(key, value);
 			}
 		}
-
-		this._xmlhttp.setRequestHeader("Content-Type", "application/json");
 
 		if (undefined !== responseCallback) {
 			var _xh = this._xmlhttp;
@@ -3463,7 +3468,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: { major: 1, minor: 3, revision: 11, name: "Journey" },
+	version: { major: 1, minor: 3, revision: 12, name: "Journey" },
 
 	ctor: function() {
 		this.tag = UUID.v4().toString();
