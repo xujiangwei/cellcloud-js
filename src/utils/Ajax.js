@@ -99,16 +99,17 @@ var AjaxRequest = Class({
 		var params;
 		//如果content是JSON对象, 即把content转换成表单类型以POST传输
 		if (null != this._content && typeof this._content == "object") {
-			for(var item in this._content){
-				if(params == null){
+			for (var item in this._content) {
+				if (params == null) {
 					params = item + '=' + encodeURIComponent(this._content[item]);
-				}else{
+				}
+				else {
 					params += '&' + item + '=' + encodeURIComponent(this._content[item]);
 				}
 			}
 			this._xmlhttp.setRequestHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
 		}
-		else{
+		else {
 			params = this._content;
 			this._xmlhttp.setRequestHeader("Content-Type", "application/json");
 		}
