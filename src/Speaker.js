@@ -222,6 +222,13 @@ var Speaker = Class({
 					else if (parseInt(data.queue) > 0) {
 						self.tick();
 					}
+
+					if (self.pong == 0) {
+						self.pong = Date.now();
+						if (self.ping > 0) {
+							self.pingPong = self.pong - self.ping;
+						}
+					}
 				});
 
 			if (self.ping == 0) {
