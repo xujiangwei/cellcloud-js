@@ -198,7 +198,7 @@ var TalkService = Class(Service, {
 		return speaker.call(identifiers);
 	},
 
-	tryRecall: function(callback) {
+	tryRecall: function() {
 		if (this.speakers.length == 0) {
 			return false;
 		}
@@ -207,10 +207,6 @@ var TalkService = Class(Service, {
         for (var i = 0; i < this.speakers.length; ++i) {
             var speaker = this.speakers[i];
             if (speaker.state != SpeakerState.HANGUP) {
-                // 未真正关闭, 通知应用层激活
-                if (undefined !== callback) {
-                    callback.call(null, false);
-                }
                 return true;
             }
         }
@@ -233,10 +229,6 @@ var TalkService = Class(Service, {
 					// call without ids
 					speaker.call(null);
 				}
-			}
-
-			if (undefined !== callback) {
-				callback.call(null, true);
 			}
 		}, 5000);
 

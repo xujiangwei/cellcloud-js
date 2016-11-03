@@ -108,9 +108,7 @@ var Speaker = Class({
 
 		if (this.wsEnabled) {
 			if (null != this.socket) {
-				if (this.socket.readyState == WebSocket.OPEN) {
-					this.socket.close(1000, "Speaker#close");
-				}
+				this.socket.close(1000, "Speaker#close");
 			}
 			// WebSocket 的端口号是 HTTP 服务端口号 +1， WebSocket Secure 端口号是 HTTPS 服务端口号 +1
 			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
@@ -136,9 +134,7 @@ var Speaker = Class({
 
 		if (null != this.socket) {
 			try {
-				if (this.socket.readyState == WebSocket.OPEN) {
-					this.socket.close(1000, "Speaker#close");
-				}
+				this.socket.close(1000, "Speaker#close");
 			} catch (e) {
 				Logger.e("Speaker", "Close socket has exception.");
 			}
@@ -307,17 +303,23 @@ var Speaker = Class({
 		else {
 			socket = new WebSocket("ws://" + address + ":" + port + "/ws", "cell");
 		}
-		socket.onopen = function(event) { self._onSocketOpen(event); };
-		socket.onclose = function(event) { self._onSocketClose(event); };
-		socket.onmessage = function(event) { self._onSocketMessage(event); };
-		socket.onerror = function(event) { self._onSocketError(event); };
+		socket.onopen = function(event) { self._onSocketOpen(socket, event); };
+		socket.onclose = function(event) { self._onSocketClose(socket, event); };
+		socket.onmessage = function(event) { self._onSocketMessage(socket, event); };
+		socket.onerror = function(event) { self._onSocketError(socket, event); };
 		return socket;
 	},
 
-	_onSocketOpen: function(event) {
+	_onSocketOpen: function(socket, event) {
+		if (socket != this.socket)
+			return;
+
 		Logger.d('Speaker', '_onSocketOpen');
 	},
-	_onSocketClose: function(event) {
+	_onSocketClose: function(socket, event) {
+		if (socket != this.socket)
+			return;
+
 		Logger.d('Speaker', '_onSocketClose');
 
 		if (this.state == SpeakerState.CALLED) {
@@ -332,7 +334,10 @@ var Speaker = Class({
 		this.state = SpeakerState.HANGUP;
 		this.remoteTag = null;
 	},
-	_onSocketMessage: function(event) {
+	_onSocketMessage: function(socket, event) {
+		if (socket != this.socket)
+			return;
+
 		//Logger.d('Speaker', '_onSocketMessage: ' + event.data);
 
 		var data = JSON.parse(event.data);
@@ -370,7 +375,10 @@ var Speaker = Class({
 			Logger.e('Speaker', 'Unknown message received');
 		}
 	},
-	_onSocketError: function(event) {
+	_onSocketError: function(socket, event) {
+		if (socket != this.socket)
+			return;
+
 		Logger.d('Speaker', '_onSocketError');
 
 		this._fireFailed(this.socket, HttpErrorCode.NETWORK_FAILED);
