@@ -2741,6 +2741,13 @@ var Speaker = Class({
 					else if (parseInt(data.queue) > 0) {
 						self.tick();
 					}
+
+					if (self.pong == 0) {
+						self.pong = Date.now();
+						if (self.ping > 0) {
+							self.pingPong = self.pong - self.ping;
+						}
+					}
 				});
 
 			if (self.ping == 0) {
@@ -3284,12 +3291,19 @@ var TalkService = Class(Service, {
 		}
 
 		// 判断socket连接是否真正的关闭了, 如果未真正关闭, 无须重连
+		var relist = [];
         for (var i = 0; i < this.speakers.length; ++i) {
             var speaker = this.speakers[i];
             if (speaker.state != SpeakerState.HANGUP) {
-                return true;
+                continue;
             }
+
+			relist.push(speaker);
         }
+
+		if (relist.length == 0) {
+			return false;
+		}
 
 		if (this.recallTimer > 0) {
 			clearTimeout(this.recallTimer);
@@ -3301,10 +3315,12 @@ var TalkService = Class(Service, {
 			clearTimeout(self.recallTimer);
 			self.recallTimer = 0;
 
-			window.nucleus._resetTag();
+			if (relist.length == self.speakers.length) {
+				window.nucleus._resetTag();
+			}
 
-			for (var i = 0; i < self.speakers.length; ++i) {
-				var speaker = self.speakers[i];
+			for (var i = 0; i < relist.length; ++i) {
+				var speaker = relist[i];
 				if (speaker.state != SpeakerState.CALLED) {
 					// call without ids
 					speaker.call(null);
@@ -3479,7 +3495,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: { major: 1, minor: 3, revision: 13, name: "Journey" },
+	version: { major: 1, minor: 3, revision: 14, name: "Journey" },
 
 	ctor: function() {
 		this.tag = UUID.v4().toString();
