@@ -41,7 +41,7 @@ $(document).ready(function(e) {
 
 	if (window.nucleus.startup()) {
 		var address = new InetAddress("127.0.0.1", 7070);
-		nucleus.talkService.call(["Dummy"], address, false);
+		nucleus.talkService.call(["Dummy", "Invisible"], address, true);
 
 		// 添加监听器
 		var MyTalkListener = Class(TalkListener, {

@@ -624,9 +624,9 @@ var HttpMethod = {
 
 var HttpErrorCode = {
 	// 网络错误
-	NETWORK_FAILED: 10101,
+	NETWORK_FAILED: 1000,
 	// 访问状态错误
-	STATUS_ERROR: 10201
+	STATUS_ERROR: 1100
 };
 
 /**
@@ -2641,7 +2641,12 @@ var Speaker = Class({
 				.error(self._fireFailed, self)
 				.send(function(data, cookie) {
 					self.cookie = cookie;
-					self._processInterrogation(data);
+					if (undefined !== data.ver && data.ver == "1.1") {
+						self._requestQuick(data);
+					}
+					else {
+						self._processInterrogation(data);
+					}
 				});
 		}
 
@@ -2887,6 +2892,9 @@ var Speaker = Class({
 				}
 			}
 		}
+		else if (data.tpt == "quick") {
+			this._doQuick(data.packet);
+		}
 		else if (data.tpt == "request") {
 			this._doRequest(data.packet);
 		}
@@ -2895,7 +2903,12 @@ var Speaker = Class({
 			this._requestCellets();
 		}
 		else if (data.tpt == 'interrogate') {
-			this._processInterrogation(data.packet);
+			if (undefined !== data.ver && data.ver == "1.1") {
+				this._requestQuick(data.packet);
+			}
+			else {
+				this._processInterrogation(data.packet);
+			}
 		}
 		else {
 			Logger.e('Speaker', 'Unknown message received');
@@ -2958,6 +2971,58 @@ var Speaker = Class({
 		}
 	},
 
+	_requestQuick: function(data) {
+		Logger.d('Speaker', "Use 'QUICK' handshake");
+
+		var ciphertextBase64 = data.ciphertext;	// string
+		var key = data.key;		// string
+		var ciphertext = Base64.decode(ciphertextBase64);	// string - bytes
+
+		// 记录密钥
+		this.secretKey = key;
+
+		// 解密
+		var plaintext = Utils.simpleDecrypt(ciphertext, key);	// array - string
+		// 将解密之后的数组转为字符串形式
+		var text = [];
+		for (var i = 0; i < plaintext.length; ++i) {
+			text.push(String.fromCharCode(plaintext[i]));
+		}
+		text = text.join('');
+
+		var tag = window.nucleus.tag.toString();
+
+		// 生成 Cellet 标识数组
+		var idArray = [];
+		for (var i = 0; i < this.identifiers.length; ++i) {
+			var identifier = this.identifiers[i];
+			idArray.push(identifier.toString());
+		}
+
+		// 明文，源标签，CelletIdentifiers
+		var content = { "plaintext": text, "tag": tag, "identifiers": idArray };
+
+		if (null != this.socket) {
+			var data = {
+				tpt: "quick",
+				packet: content
+			};
+			this.socket.send(JSON.stringify(data));
+		}
+		else {
+			var self = this;
+			self.request = Ajax.newCrossDomain(self.address.getAddress(), self.address.getPort())
+				.uri("/talk/quick")
+				.method("POST")
+				.cookie(self.cookie)
+				.content(content)
+				.error(self._fireFailed, self)
+				.send(function(data) {
+					self._doQuick(data);
+				});
+		}
+	},
+
 	_requestCellets: function() {
 		var tag = window.nucleus.tag.toString();
 		for (var i = 0; i < this.identifiers.length; ++i) {
@@ -3015,6 +3080,48 @@ var Speaker = Class({
 
 			// 回调事件
 			this._fireContacted(data.identifier);
+		}
+	},
+
+	_doQuick: function(data) {
+		if (this.state == SpeakerState.HANGUP) {
+			// 已经有失败的请求，则不再记录成功的请求
+			return;
+		}
+
+		// tag
+		var tag = data.tag;
+		// identifiers
+		var identifiers = data.identifiers;
+
+		// 判断是否错误
+		if (undefined === data.error) {
+			// 记录 tag
+			this.remoteTag = tag.toString();
+
+			// 更新状态
+			this.state = SpeakerState.CALLED;
+
+			for (var i = 0; i < identifiers.length; ++i) {
+				var identifier = identifiers[i];
+
+				Logger.i("Speaker", "Cellet '" + identifier + "' has called at " +
+					this.address.getAddress() + ":" + (this.address.getPort() + ((null != this.socket) ? (this.secure ? 7 : 1) : 0)));
+
+				// 回调事件
+				this._fireContacted(identifier);
+			}
+		}
+		else {
+			// 回调失败
+			var failure = new TalkServiceFailure(TalkFailureCode.NOTFOUND_CELLET, "Speaker");
+			failure.setSourceDescription("Can not find cellet '" + identifiers.toString() + "'");
+			failure.setSourceCelletIdentifiers(this.identifiers);
+
+			this.state = SpeakerState.HANGUP;		// 更新状态
+
+			// 回调失败
+			this.delegate.onFailed(this, failure);
 		}
 	},
 
@@ -3495,7 +3602,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: { major: 1, minor: 3, revision: 14, name: "Journey" },
+	version: { major: 1, minor: 5, revision: 1, name: "Journey" },
 
 	ctor: function() {
 		this.tag = UUID.v4().toString();

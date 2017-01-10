@@ -37,9 +37,9 @@ var HttpMethod = {
 
 var HttpErrorCode = {
 	// 网络错误
-	NETWORK_FAILED: 10101,
+	NETWORK_FAILED: 1000,
 	// 访问状态错误
-	STATUS_ERROR: 10201
+	STATUS_ERROR: 1100
 };
 
 /**
