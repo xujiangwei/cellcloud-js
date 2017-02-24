@@ -51,15 +51,21 @@ $(document).ready(function(e) {
 			dialogue: function(identifier, primitive) {
 				console.log("*** dialogue: " + identifier);
 
-				if (primitive.isDialectal) {
+				if (primitive.isDialectal()) {
 					var d = primitive.getDialect();
 					var data = d.getParam("data");
-					console.log("Dialect JSON: " + data.version);
+					console.log("Dialect JSON: " + data.version + ", counts:" + data.counts);
 				}
 			},
 
 			contacted: function(identifier, tag) {
 				console.log("*** contacted: " + identifier + "@" + tag);
+
+				setTimeout(function() {
+					if (!isTaskRunning()) {
+						startTask(100);
+					}
+				}, 1000);
 			},
 
 			quitted: function(identifier, tag) {
@@ -74,34 +80,63 @@ $(document).ready(function(e) {
 				}
 
 				setTimeout(function() {
-						var ret = nucleus.talkService.recall();
-						console.log("retry: " + ret);
-					}, 5000);
+					var ret = nucleus.talkService.recall();
+					console.log("retry: " + ret);
+				}, 5000);
 			}
 		});
 
 		nucleus.talkService.addListener(new MyTalkListener());
-
-		setTimeout(function() {
-			//var p = new Primitive();
-			//p.commit(new SubjectStuff("This is a test."));
-			//nucleus.talkService.talk("Dummy", p);
-
-			var dialect = new ActionDialect();
-			dialect.setAction("json");
-			var obj = {version: "2.0.1"};
-			dialect.appendParam("data", obj);
-
-			if (nucleus.ts.talk("Dummy", dialect)) {
-				Logger.d("Dev", "exec talk ok");
-			}
-			else {
-				Logger.d("Dev", "exec talk error");
-			}
-
-		}, 5000);
 	}
 });
+
+var taskTimer = 0;
+
+function isTaskRunning() {
+	return (0 != taskTimer);
+}
+
+function startTask(count) {
+	if (taskTimer > 0) {
+		clearTimeout(taskTimer);
+	}
+
+	if (count == 0) {
+		taskTimer = 0;
+		return;
+	}
+
+	// 计数
+	--count;
+
+	taskTimer = setTimeout(function() {
+		startTask(count);
+	}, 2000);
+
+	var dialect = new ActionDialect();
+	dialect.setAction("json");
+	var version = nucleus.version;
+	var obj = {
+		version: version.major + "." + version.minor + "." + version.revision,
+		counts: count
+	};
+	dialect.appendParam("data", obj);
+
+	if (nucleus.ts.talk("Dummy", dialect)) {
+		Logger.d("Dev", "exec talk ok");
+	}
+	else {
+		Logger.d("Dev", "exec talk error");
+	}
+}
+
+function stopTask() {
+	if (taskTimer > 0) {
+		clearTimeout(taskTimer);
+		taskTimer = 0;
+	}
+}
+
 </script>
 </body>
 </html>
