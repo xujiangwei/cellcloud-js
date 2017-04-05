@@ -29,7 +29,7 @@ THE SOFTWARE.
  */
 var Nucleus = Class(Service, {
 	// 版本信息
-	version: { major: 1, minor: 5, revision: 1, name: "Journey" },
+	version: { major: 1, minor: 6, revision: 0, name: "Xi" },
 
 	ctor: function() {
 		this.tag = UUID.v4().toString();

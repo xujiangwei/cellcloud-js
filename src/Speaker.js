@@ -42,9 +42,11 @@ var SpeakerState = {
 /**
  * 会话器。
  *
+ * @class Speaker
  * @author Jiangwei Xu
  */
 var Speaker = Class({
+
 	ctor: function(address, delegate, socketEnabled) {
 		this.address = address;
 		this.delegate = delegate;
@@ -54,6 +56,9 @@ var Speaker = Class({
 		this.wsEnabled = (socketEnabled !== undefined && socketEnabled) ? true : false;
 		// WebSocket
 		this.socket = null;
+		// WebSocket 的发送定时器
+		this.sockTimer = 0;
+		this.sockSendQueue = null;
 
 		// 状态
 		this.state = SpeakerState.HANGUP;
@@ -84,6 +89,11 @@ var Speaker = Class({
 		this.pingPong = 0;
 	},
 
+	/**
+	 *
+	 * @memberof Speaker
+	 * @instance
+	 */
 	call: function(identifiers) {
 		if (this.state == SpeakerState.CALLING)
 			return false;
@@ -112,6 +122,7 @@ var Speaker = Class({
 			}
 			// WebSocket 的端口号是 HTTP 服务端口号 +1， WebSocket Secure 端口号是 HTTPS 服务端口号 +1
 			this.socket = this._createSocket(this.address.getAddress(), this.address.getPort() + 1);
+			this.sockSendQueue = [];
 		}
 
 		if (null == this.socket) {
@@ -122,8 +133,8 @@ var Speaker = Class({
 				.error(self._fireFailed, self)
 				.send(function(data, cookie) {
 					self.cookie = cookie;
-					if (undefined !== data.ver && data.ver == "1.1") {
-						self._requestQuick(data);
+					if (undefined !== data.ver && (data.ver == "1.1" || data.ver == "2.0")) {
+						self._respondQuick(data);
 					}
 					else {
 						self._processInterrogation(data);
@@ -137,6 +148,11 @@ var Speaker = Class({
 	hangUp: function() {
 		// TODO 发送 hang up 到服务器
 
+		if (this.sockTimer > 0) {
+			clearTimeout(this.sockTimer);
+			this.sockTimer = 0;
+		}
+
 		if (null != this.socket) {
 			try {
 				this.socket.close(1000, "Speaker#close");
@@ -144,6 +160,7 @@ var Speaker = Class({
 				Logger.e("Speaker", "Close socket has exception.");
 			}
 			this.socket = null;
+			this.sockSendQueue = null;
 		}
 
 		this.state = SpeakerState.HANGUP;
@@ -178,7 +195,17 @@ var Speaker = Class({
 				"tpt": "dialogue",
 				"packet": content
 			};
-			this.socket.send(JSON.stringify(data));
+
+			// 将数据写入队列
+			this.sockSendQueue.push(JSON.stringify(data));
+			// 如果没有发送任务，则启动发送任务。
+			if (this.sockTimer == 0) {
+				this.sockTimer = setTimeout(function() {
+					self._sockHandleSend();
+				}, 20);
+			}
+
+			//this.socket.send(JSON.stringify(data));
 
 			if (this.ping == 0) {
 				this.ping = Date.now();
@@ -385,7 +412,7 @@ var Speaker = Class({
 		}
 		else if (data.tpt == 'interrogate') {
 			if (undefined !== data.ver && data.ver == "1.1") {
-				this._requestQuick(data.packet);
+				this._respondQuick(data.packet);
 			}
 			else {
 				this._processInterrogation(data.packet);
@@ -402,6 +429,27 @@ var Speaker = Class({
 		Logger.d('Speaker', '_onSocketError');
 
 		this._fireFailed(this.socket, HttpErrorCode.NETWORK_FAILED);
+	},
+
+	_sockHandleSend: function() {
+		if (null == this.sockSendQueue || this.sockSendQueue.length == 0
+			|| null == this.socket) {
+			clearTimeout(this.sockTimer);
+			this.sockTimer = 0;
+			return;
+		}
+
+		// 取出第一个数据进行发送
+		var data = this.sockSendQueue.shift();
+		// 发送
+		this.socket.send(data);
+
+		if (this.sockSendQueue.length > 0) {
+			var self = this;
+			this.sockTimer = setTimeout(function() {
+				self._sockHandleSend();
+			}, 20);
+		}
 	},
 
 	_processInterrogation: function(data) {
@@ -452,7 +500,7 @@ var Speaker = Class({
 		}
 	},
 
-	_requestQuick: function(data) {
+	_respondQuick: function(data) {
 		Logger.d('Speaker', "Use 'QUICK' handshake");
 
 		var ciphertextBase64 = data.ciphertext;	// string
