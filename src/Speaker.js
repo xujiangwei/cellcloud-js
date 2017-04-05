@@ -432,10 +432,11 @@ var Speaker = Class({
 	},
 
 	_sockHandleSend: function() {
+		clearTimeout(this.sockTimer);
+		this.sockTimer = 0;
+
 		if (null == this.sockSendQueue || this.sockSendQueue.length == 0
 			|| null == this.socket) {
-			clearTimeout(this.sockTimer);
-			this.sockTimer = 0;
 			return;
 		}
 
