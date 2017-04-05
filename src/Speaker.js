@@ -411,7 +411,7 @@ var Speaker = Class({
 			this._requestCellets();
 		}
 		else if (data.tpt == 'interrogate') {
-			if (undefined !== data.ver && data.ver == "1.1") {
+			if (undefined !== data.ver && (data.ver == "1.1" || data.ver == "2.0")) {
 				this._respondQuick(data.packet);
 			}
 			else {
